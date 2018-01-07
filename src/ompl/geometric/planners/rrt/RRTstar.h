@@ -330,6 +330,25 @@ namespace ompl
                 return bestCost_;
             }
 
+            /** \brief Set the seed used by the RNG and the StateSamplers. The state samplers must already be allocated, as a new state sampler will *not* take this seed. */
+            void setLocalSeed(boost::uint32_t localSeed)
+            {
+                //Set the local RNG seed:
+                rng_.setLocalSeed(localSeed);
+
+                //Set the sampler's seed, if present:
+                if (sampler_)
+                {
+                    sampler_->setLocalSeed(localSeed);
+                }
+
+                //Set the informed sampler's seed, if present
+                if (infSampler_)
+                {
+                    infSampler_->setLocalSeed(localSeed);
+                }
+            };
+
         protected:
             /** \brief Representation of a motion */
             class Motion
