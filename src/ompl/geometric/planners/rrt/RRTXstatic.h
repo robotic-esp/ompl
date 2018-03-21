@@ -284,21 +284,25 @@ namespace ompl
             }
 
             /** \brief Set the seed used by the RNG and the StateSamplers. The state samplers must already be allocated, as a new state sampler will *not* take this seed. */
-            void setLocalSeed(boost::uint32_t localSeed)
+            void setLocalSeed(std::uint_fast32_t localSeed)
             {
+                //Store the local seed
+                localSeedSet_ = true;
+                localSeed_ = localSeed;
+
                 //Set the local RNG seed:
-                rng_.setLocalSeed(localSeed);
+                rng_.setLocalSeed(localSeed_);
 
                 //Set the sampler's seed, if present:
                 if (sampler_)
                 {
-                    sampler_->setLocalSeed(localSeed);
+                    sampler_->setLocalSeed(localSeed_);
                 }
 
                 //Set the informed sampler's seed, if present
                 if (infSampler_)
                 {
-                    infSampler_->setLocalSeed(localSeed);
+                    infSampler_->setLocalSeed(localSeed_);
                 }
             };
 
@@ -499,6 +503,9 @@ namespace ompl
             {
                 return std::to_string(nn_->size());
             }
+
+            bool localSeedSet_{false};
+            std::uint_fast32_t localSeed_;
         };
     }
 }
