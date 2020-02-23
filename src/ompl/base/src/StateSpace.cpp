@@ -36,6 +36,7 @@
 #include "ompl/util/Exception.h"
 #include "ompl/tools/config/MagicConstants.h"
 #include "ompl/base/spaces/RealVectorStateSpace.h"
+#include "ompl/util/String.h"
 #include <mutex>
 #include <boost/scoped_ptr.hpp>
 #include <numeric>
@@ -97,24 +98,12 @@ ompl::base::StateSpace::StateSpace()
     maxExtent_ = std::numeric_limits<double>::infinity();
 
     params_.declareParam<double>("longest_valid_segment_fraction",
-                                 [this](double segmentFraction)
-                                 {
-                                     setLongestValidSegmentFraction(segmentFraction);
-                                 },
-                                 [this]
-                                 {
-                                     return getLongestValidSegmentFraction();
-                                 });
+                                 [this](double segmentFraction) { setLongestValidSegmentFraction(segmentFraction); },
+                                 [this] { return getLongestValidSegmentFraction(); });
 
     params_.declareParam<unsigned int>("valid_segment_count_factor",
-                                       [this](unsigned int factor)
-                                       {
-                                           setValidSegmentCountFactor(factor);
-                                       },
-                                       [this]
-                                       {
-                                           return getValidSegmentCountFactor();
-                                       });
+                                       [this](unsigned int factor) { setValidSegmentCountFactor(factor); },
+                                       [this] { return getValidSegmentCountFactor(); });
     as.list_.push_back(this);
 }
 
@@ -339,16 +328,18 @@ ompl::base::StateSpace::getValueLocationsByName() const
 
 void ompl::base::StateSpace::copyToReals(std::vector<double> &reals, const State *source) const
 {
-    reals.resize(valueLocationsInOrder_.size());
-    for (std::size_t i = 0; i < valueLocationsInOrder_.size(); ++i)
-        reals[i] = *getValueAddressAtLocation(source, valueLocationsInOrder_[i]);
+    const auto &locations = getValueLocations();
+    reals.resize(locations.size());
+    for (std::size_t i = 0; i < locations.size(); ++i)
+        reals[i] = *getValueAddressAtLocation(source, locations[i]);
 }
 
 void ompl::base::StateSpace::copyFromReals(State *destination, const std::vector<double> &reals) const
 {
-    assert(reals.size() == valueLocationsInOrder_.size());
+    const auto &locations = getValueLocations();
+    assert(reals.size() == locations.size());
     for (std::size_t i = 0; i < reals.size(); ++i)
-        *getValueAddressAtLocation(destination, valueLocationsInOrder_[i]) = reals[i];
+        *getValueAddressAtLocation(destination, locations[i]) = reals[i];
 }
 
 double *ompl::base::StateSpace::getValueAddressAtLocation(State *state, const ValueLocation &loc) const
@@ -369,14 +360,16 @@ const double *ompl::base::StateSpace::getValueAddressAtLocation(const State *sta
 
 double *ompl::base::StateSpace::getValueAddressAtName(State *state, const std::string &name) const
 {
-    auto it = valueLocationsByName_.find(name);
-    return (it != valueLocationsByName_.end()) ? getValueAddressAtLocation(state, it->second) : nullptr;
+    const auto &locations = getValueLocationsByName();
+    auto it = locations.find(name);
+    return (it != locations.end()) ? getValueAddressAtLocation(state, it->second) : nullptr;
 }
 
 const double *ompl::base::StateSpace::getValueAddressAtName(const State *state, const std::string &name) const
 {
-    auto it = valueLocationsByName_.find(name);
-    return (it != valueLocationsByName_.end()) ? getValueAddressAtLocation(state, it->second) : nullptr;
+    const auto &locations = getValueLocationsByName();
+    auto it = locations.find(name);
+    return (it != locations.end()) ? getValueAddressAtLocation(state, it->second) : nullptr;
 }
 
 unsigned int ompl::base::StateSpace::getSerializationLength() const
@@ -576,7 +569,7 @@ void ompl::base::StateSpace::diagram(std::ostream &out) const
                 const StateSpace *s = m->as<CompoundStateSpace>()->getSubspace(i).get();
                 q.push(s);
                 out << '"' << m->getName() << R"(" -> ")" << s->getName() << R"(" [label=")"
-                    << std::to_string(m->as<CompoundStateSpace>()->getSubspaceWeight(i)) << R"("];)" << std::endl;
+                    << ompl::toString(m->as<CompoundStateSpace>()->getSubspaceWeight(i)) << R"("];)" << std::endl;
             }
         }
     }
@@ -597,7 +590,7 @@ void ompl::base::StateSpace::Diagram(std::ostream &out)
             {
                 if ((*it)->isCompound() && (*it)->as<CompoundStateSpace>()->hasSubspace((*jt)->getName()))
                     out << '"' << (*it)->getName() << R"(" -> ")" << (*jt)->getName() << R"(" [label=")"
-                        << std::to_string((*it)->as<CompoundStateSpace>()->getSubspaceWeight((*jt)->getName())) <<
+                        << ompl::toString((*it)->as<CompoundStateSpace>()->getSubspaceWeight((*jt)->getName())) <<
                         R"("];)" << std::endl;
                 else if (!StateSpaceIncludes(*it, *jt) && StateSpaceCovers(*it, *jt))
                     out << '"' << (*it)->getName() << R"(" -> ")" << (*jt)->getName() << R"(" [style=dashed];)"
@@ -659,14 +652,14 @@ void ompl::base::StateSpace::sanityChecks(double zero, double eps, unsigned int 
                     throw Exception("Distance between different states should be above 0");
                 double d21 = distance(s2, s1);
                 if ((flags & STATESPACE_DISTANCE_SYMMETRIC) && fabs(d12 - d21) > eps)
-                    throw Exception("The distance function should be symmetric (A->B=" + std::to_string(d12) +
-                                    ", B->A=" + std::to_string(d21) + ", difference is " +
-                                    std::to_string(fabs(d12 - d21)) + ")");
+                    throw Exception("The distance function should be symmetric (A->B=" + ompl::toString(d12) +
+                                    ", B->A=" + ompl::toString(d21) + ", difference is " +
+                                    ompl::toString(fabs(d12 - d21)) + ")");
                 if (flags & STATESPACE_DISTANCE_BOUND)
                     if (d12 > maxExt + zero)
                         throw Exception("The distance function should not report values larger than the maximum extent "
                                         "(" +
-                                        std::to_string(d12) + " > " + std::to_string(maxExt) + ")");
+                                        ompl::toString(d12) + " > " + ompl::toString(maxExt) + ")");
             }
         }
         if (serialization)
@@ -676,7 +669,7 @@ void ompl::base::StateSpace::sanityChecks(double zero, double eps, unsigned int 
     }
 
     // Test that interpolation works as expected and also test triangle inequality
-    if (!isDiscrete() && !isHybrid())
+    if (!isDiscrete() && !isHybrid() && (flags & (STATESPACE_INTERPOLATION | STATESPACE_TRIANGLE_INEQUALITY)))
     {
         State *s1 = allocState();
         State *s2 = allocState();
@@ -699,10 +692,10 @@ void ompl::base::StateSpace::sanityChecks(double zero, double eps, unsigned int 
 
             interpolate(s1, s2, 0.5, s3);
             double diff = distance(s1, s3) + distance(s3, s2) - distance(s1, s2);
-            if ((flags & STATESPACE_TRIANGLE_INEQUALITY) && fabs(diff) > eps)
+            if ((flags & STATESPACE_TRIANGLE_INEQUALITY) && diff < -eps)
                 throw Exception("Interpolation to midpoint state does not lead to distances that satisfy the triangle "
                                 "inequality (" +
-                                std::to_string(diff) + " difference)");
+                                ompl::toString(diff) + " difference)");
 
             interpolate(s3, s2, 0.5, s3);
             interpolate(s1, s2, 0.75, s2);
@@ -867,7 +860,6 @@ ompl::base::CompoundStateSpace::CompoundStateSpace()
 
 ompl::base::CompoundStateSpace::CompoundStateSpace(const std::vector<StateSpacePtr> &components,
                                                    const std::vector<double> &weights)
-  : StateSpace(), componentCount_(0), weightSum_(0.0), locked_(false)
 {
     if (components.size() != weights.size())
         throw Exception("Number of component spaces and weights are not the same");
@@ -897,11 +889,11 @@ bool ompl::base::CompoundStateSpace::isHybrid() const
 {
     bool c = false;
     bool d = false;
-    for (unsigned int i = 0; i < componentCount_; ++i)
+    for (const auto component : components_)
     {
-        if (components_[i]->isHybrid())
+        if (component->isHybrid())
             return true;
-        if (components_[i]->isDiscrete())
+        if (component->isDiscrete())
             d = true;
         else
             c = true;
@@ -924,8 +916,8 @@ const ompl::base::StateSpacePtr &ompl::base::CompoundStateSpace::getSubspace(con
 
 bool ompl::base::CompoundStateSpace::hasSubspace(const std::string &name) const
 {
-    for (unsigned int i = 0; i < componentCount_; ++i)
-        if (components_[i]->getName() == name)
+    for (const auto component : components_)
+        if (component->getName() == name)
             return true;
     return false;
 }
@@ -1046,8 +1038,8 @@ void ompl::base::CompoundStateSpace::copyState(State *destination, const State *
 unsigned int ompl::base::CompoundStateSpace::getSerializationLength() const
 {
     unsigned int l = 0;
-    for (unsigned int i = 0; i < componentCount_; ++i)
-        l += components_[i]->getSerializationLength();
+    for (const auto component : components_)
+        l += component->getSerializationLength();
     return l;
 }
 
@@ -1086,8 +1078,8 @@ double ompl::base::CompoundStateSpace::distance(const State *state1, const State
 void ompl::base::CompoundStateSpace::setLongestValidSegmentFraction(double segmentFraction)
 {
     StateSpace::setLongestValidSegmentFraction(segmentFraction);
-    for (unsigned int i = 0; i < componentCount_; ++i)
-        components_[i]->setLongestValidSegmentFraction(segmentFraction);
+    for (const auto component : components_)
+        component->setLongestValidSegmentFraction(segmentFraction);
 }
 
 unsigned int ompl::base::CompoundStateSpace::validSegmentCount(const State *state1, const State *state2) const
@@ -1224,8 +1216,8 @@ void ompl::base::CompoundStateSpace::printSettings(std::ostream &out) const
 
 void ompl::base::CompoundStateSpace::setup()
 {
-    for (unsigned int i = 0; i < componentCount_; ++i)
-        components_[i]->setup();
+    for (const auto component : components_)
+        component->setup();
 
     StateSpace::setup();
 }
@@ -1233,8 +1225,8 @@ void ompl::base::CompoundStateSpace::setup()
 void ompl::base::CompoundStateSpace::computeLocations()
 {
     StateSpace::computeLocations();
-    for (unsigned int i = 0; i < componentCount_; ++i)
-        components_[i]->computeLocations();
+    for (const auto component : components_)
+        component->computeLocations();
 }
 
 namespace ompl

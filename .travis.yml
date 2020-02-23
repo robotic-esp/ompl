@@ -2,61 +2,63 @@ language: cpp
 
 matrix:
   include:
-    - os: linux
-      dist: trusty
-      sudo: required
-      compiler: gcc
-      env: JOBS=4
-      addons:
-        apt:
-          packages:
-            - libboost1.55-all-dev
-            - libode-dev
-            - libeigen3-dev
-      cache:
-        apt: true
-        directories:
-          - /usr/local
-    - os: osx
-      osx_image: xcode9.1
-      compiler: clang
-      env: JOBS=2
-      cache:
-        directories:
-          - /usr/local
-    - os: linux
-      sudo: required
-      services:
-        - docker
-      env: DOCKERFILE="debian-jessie" JOBS=4
-    - os: linux
-      sudo: required
-      services:
-        - docker
-      env: DOCKERFILE="ubuntu-xenial" JOBS=4
+  - os: linux
+    dist: bionic
+    compiler: gcc
+    addons:
+      apt:
+        packages:
+        - libboost-filesystem-dev
+        - libboost-program-options-dev
+        - libboost-serialization-dev
+        - libboost-system-dev
+        - libboost-test-dev
+        - libeigen3-dev
+        - libflann-dev
+        - libode-dev
+        - ninja-build
+  - os: linux
+    dist: xenial
+    compiler: gcc
+    addons:
+      apt:
+        packages:
+        - libboost-filesystem-dev
+        - libboost-program-options-dev
+        - libboost-serialization-dev
+        - libboost-system-dev
+        - libboost-test-dev
+        - libeigen3-dev
+        - libflann-dev
+        - libode-dev
+        - ninja-build
+  - os: osx
+    osx_image: xcode10.3
+    compiler: clang
+    addons:
+      homebrew:
+        packages:
+        - eigen
+        - flann
+        - ninja
+        update: true
+  - os: linux
+    services:
+      - docker
+    env: DOCKERFILE="debian-stretch"
 
-install:
+before_install:
   - if [ -n "$DOCKERFILE" ]; then
-      docker build -t "$DOCKERFILE" -f "scripts/docker/$DOCKERFILE" .;
-    fi
-  - if [ -z "$DOCKERFILE" -a "$TRAVIS_OS_NAME" = "osx" ]; then
-      brew update;
-      brew install ode eigen;
-    fi
-  - if [ -z "$DOCKERFILE" -a "$TRAVIS_OS_NAME" = "linux" ]; then
-      sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test;
-      sudo apt-get -y update;
-      sudo apt-get -y install g++-5;
-      export CXX=g++-5;
+      docker build -t "$DOCKERFILE" -f "scripts/docker/$DOCKERFILE.Dockerfile" .;
     fi
 
 script:
   - if [ -n "$DOCKERFILE" ]; then
-      docker run "$DOCKERFILE"  /bin/sh -c "mkdir /root/ompl/build && cd /root/ompl/build && cmake -DOMPL_REGISTRATION=OFF -DCMAKE_INSTALL_PREFIX=tmp .. && make -j $JOBS && ctest -j $JOBS";
+      docker run "$DOCKERFILE"  /bin/sh -c "cmake -DOMPL_REGISTRATION=OFF .. && make -j `nproc` && ctest";
     else
       mkdir -p build &&
       cd build &&
-      cmake -DOMPL_REGISTRATION=OFF -DCMAKE_INSTALL_PREFIX=tmp .. &&
-      make -j $JOBS &&
-      ctest -j $JOBS;
+      cmake -G Ninja -DOMPL_REGISTRATION=OFF .. &&
+      cmake --build . &&
+      ctest;
     fi

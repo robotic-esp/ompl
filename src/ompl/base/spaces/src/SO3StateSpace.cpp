@@ -1,36 +1,36 @@
 /*********************************************************************
-* Software License Agreement (BSD License)
-*
-*  Copyright (c) 2010, Rice University
-*  All rights reserved.
-*
-*  Redistribution and use in source and binary forms, with or without
-*  modification, are permitted provided that the following conditions
-*  are met:
-*
-*   * Redistributions of source code must retain the above copyright
-*     notice, this list of conditions and the following disclaimer.
-*   * Redistributions in binary form must reproduce the above
-*     copyright notice, this list of conditions and the following
-*     disclaimer in the documentation and/or other materials provided
-*     with the distribution.
-*   * Neither the name of the Rice University nor the names of its
-*     contributors may be used to endorse or promote products derived
-*     from this software without specific prior written permission.
-*
-*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-*  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-*  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-*  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-*  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-*  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-*  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-*  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-*  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-*  POSSIBILITY OF SUCH DAMAGE.
-*********************************************************************/
+ * Software License Agreement (BSD License)
+ *
+ *  Copyright (c) 2010, Rice University
+ *  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *   * Neither the name of the Rice University nor the names of its
+ *     contributors may be used to endorse or promote products derived
+ *     from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *  POSSIBILITY OF SUCH DAMAGE.
+ *********************************************************************/
 
 /* Author: Mark Moll, Ioan Sucan */
 
@@ -41,6 +41,8 @@
 #include "ompl/tools/config/MagicConstants.h"
 #include <boost/math/constants/constants.hpp>
 #include <boost/assert.hpp>
+
+using namespace boost::math::double_constants;
 
 static const double MAX_QUATERNION_NORM_ERROR = 1e-9;
 
@@ -79,8 +81,8 @@ namespace ompl
         {
             return q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
         }
-    }
-}
+    }  // namespace base
+}  // namespace ompl
 /// @endcond
 
 void ompl::base::SO3StateSpace::StateType::setAxisAngle(double ax, double ay, double az, double angle)
@@ -101,7 +103,7 @@ void ompl::base::SO3StateSampler::sampleUniform(State *state)
 
 void ompl::base::SO3StateSampler::sampleUniformNear(State *state, const State *near, const double distance)
 {
-    if (distance >= .25 * boost::math::constants::pi<double>())
+    if (distance >= .25 * pi)
     {
         sampleUniform(state);
         return;
@@ -110,7 +112,7 @@ void ompl::base::SO3StateSampler::sampleUniformNear(State *state, const State *n
     SO3StateSpace::StateType q, *qs = static_cast<SO3StateSpace::StateType *>(state);
     const auto *qnear = static_cast<const SO3StateSpace::StateType *>(near);
     computeAxisAngle(q, rng_.gaussian01(), rng_.gaussian01(), rng_.gaussian01(),
-                     2. * pow(d, boost::math::constants::third<double>()) * distance);
+                     2. * pow(d, third) * distance);
     quaternionProduct(*qs, *qnear, q);
 }
 
@@ -121,11 +123,11 @@ void ompl::base::SO3StateSampler::sampleGaussian(State *state, const State *mean
     // between the sampled state and the mean state is stdDev. The factor 2 is
     // due to the way we define distance (see also Matt Mason's lecture notes
     // on quaternions at
-    // http://www.cs.cmu.edu/afs/cs/academic/class/16741-s07/www/lecture7.pdf).
+    // http://www.cs.cmu.edu/afs/cs/academic/class/16741-s07/www/lectures/Lecture8.pdf).
     // The 1/sqrt(3) factor is necessary because the distribution in the tangent
     // space is a 3-dimensional Gaussian, so that the *length* of a tangent
     // vector needs to be scaled by 1/sqrt(3).
-    double rotDev = (2. * stdDev) / boost::math::constants::root_three<double>();
+    double rotDev = (2. * stdDev) / root_three;
 
     // CDF of N(0, 1.17) at -pi/4 is approx. .25, so there's .25 probability
     // weight in each tail. Since the maximum distance in SO(3) is pi/2, we're
@@ -163,13 +165,13 @@ unsigned int ompl::base::SO3StateSpace::getDimension() const
 
 double ompl::base::SO3StateSpace::getMaximumExtent() const
 {
-    return .5 * boost::math::constants::pi<double>();
+    return .5 * pi;
 }
 
 double ompl::base::SO3StateSpace::getMeasure() const
 {
     // half of the surface area of a unit 3-sphere
-    return boost::math::constants::pi<double>() * boost::math::constants::pi<double>();
+    return pi * pi;
 }
 
 double ompl::base::SO3StateSpace::norm(const StateType *state) const
@@ -258,16 +260,19 @@ namespace ompl
                 return 0.0;
             return acos(dq);
         }
-    }
-}
+    }  // namespace base
+}  // namespace ompl
 /// @endcond
 
 double ompl::base::SO3StateSpace::distance(const State *state1, const State *state2) const
 {
-    BOOST_ASSERT_MSG(satisfiesBounds(state1) && satisfiesBounds(state2),
-                     "The states passed to SO3StateSpace::distance are not within bounds. Call "
-                     "SO3StateSpace::enforceBounds() in, e.g., ompl::control::ODESolver::PostPropagationEvent, "
-                     "ompl::control::StatePropagator, or ompl::base::StateValidityChecker");
+    BOOST_ASSERT_MSG(satisfiesBounds(state1) && satisfiesBounds(state2), "The states passed to SO3StateSpace::distance "
+                                                                         "are not within bounds. Call "
+                                                                         "SO3StateSpace::enforceBounds() in, e.g., "
+                                                                         "ompl::control::ODESolver::"
+                                                                         "PostPropagationEvent, "
+                                                                         "ompl::control::StatePropagator, or "
+                                                                         "ompl::base::StateValidityChecker");
     return arcLength(state1, state2);
 }
 
@@ -344,15 +349,15 @@ void ompl::base::SO3StateSpace::registerProjections()
         void defaultCellSizes() override
         {
             cellSizes_.resize(3);
-            cellSizes_[0] = boost::math::constants::pi<double>() / magic::PROJECTION_DIMENSION_SPLITS;
-            cellSizes_[1] = boost::math::constants::pi<double>() / magic::PROJECTION_DIMENSION_SPLITS;
-            cellSizes_[2] = boost::math::constants::pi<double>() / magic::PROJECTION_DIMENSION_SPLITS;
+            cellSizes_[0] = pi / magic::PROJECTION_DIMENSION_SPLITS;
+            cellSizes_[1] = pi / magic::PROJECTION_DIMENSION_SPLITS;
+            cellSizes_[2] = pi / magic::PROJECTION_DIMENSION_SPLITS;
             bounds_.resize(3);
             bounds_.setLow(-1.0);
             bounds_.setHigh(1.0);
         }
 
-        void project(const State *state, EuclideanProjection &projection) const override
+        void project(const State *state, Eigen::Ref<Eigen::VectorXd> projection) const override
         {
             projection(0) = state->as<SO3StateSpace::StateType>()->x;
             projection(1) = state->as<SO3StateSpace::StateType>()->y;

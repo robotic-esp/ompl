@@ -1,4 +1,4 @@
-# Available State Samplers
+# Available State Samplers {#samplers}
 
 There are two different kinds of samplers that sound similar, but have different roles: state space samplers (ompl::base::StateSampler) and _valid_ state samplers (ompl::base::ValidStateSampler). For each type of state space there needs to exist a corresponding derived ompl::base::StateSampler class that allows one to generate uniform samples from that state space, generate states near another state from that state space and generate states using a Gaussian distribution. The valid state samplers use the state space samplers as a low level primitive. Typically, they generate a number of state samples using the appropriate state space sampler until a valid state is found or a maximum number of iterations is exceeded. The validity of a state is determined through the ompl::base::SpaceInformation::isValid method. There are some pre-defined derived ompl::base::ValidStateSampler classes:
 
@@ -9,8 +9,7 @@ There are two different kinds of samplers that sound similar, but have different
 
 Below we will describe how you can specify a planner to use one of these samplers and how to write your own valid state sampler. The code examples are taken from the [StateSampling.cpp](StateSampling_8cpp_source.html) demo program (note that there is also a [Python version](StateSampling_8py_source.html) of this demo).
 
-
-# Using an Existing Sampler
+## Using an Existing Sampler
 
 We cannot set the type of sampler directly in the SimpleSetup or SpaceInformation classes, because each thread needs it own copy of a sampler. Instead, we need to define a ompl::base::ValidStateSamplerAllocator, a function that, given a pointer to an ompl::base::SpaceInformation, returns ompl::base::ValidStateSamplerPtr. This function can also configure the valid state sampler according to the specific space information before returning it. The following simple example shows how to use the ObstacleBasedValidStateSampler:
 
@@ -26,8 +25,7 @@ We cannot set the type of sampler directly in the SimpleSetup or SpaceInformatio
 \until allocOBValidStateSampler
 Other setup steps, such as specifying start and goal states, have been omitted for the sake of clarity.
 
-
-# Creating a New Valid State Sampler
+## Creating a New Valid State Sampler
 
 A wide variety of heuristics have been proposed to improve the sampling of states. The quality of a sample can be characterized, e.g., by its distance to the nearest obstacle or by the “visibility” from a state. There are also two common cases where problem-specific information can be exploited:
 

@@ -1,4 +1,4 @@
-# Integrate Your Own Code with OMPL's Build System
+# Integrate Your Own Code with OMPL's Build System {#buildSystem}
 
 When developing your own code that relies on OMPL, you have several options:
 
@@ -30,8 +30,8 @@ When developing your own code that relies on OMPL, you have several options:
       4. Click Advanced Settings to open the Properties window for your project.
       5. Go to C/C++ Build -> Settings in the left pane.
       6. Under the Tool Settings tab, choose Cross G++ Compiler -> Includes. To the "Include paths" section, add the location of the OMPL source tree. For example, on a Linux system with default installation path, you should use "/usr/local/include". Click Apply.
-      7. Again under the Tool Settings tab, choose Cross G++ Linker -> Libraries. To the "Libraries" section, add "ompl" (and, if needed, "ompl_app_base" and "ompl_app") . To the "Library search path" section, add the location of the OMPL library files. For example, on a Linux system with default installation path, you should use "/usr/local/lib". Click Apply.
+      7. Again under the Tool Settings tab, choose Cross G++ Linker -> Libraries. To the "Libraries" section, add "ompl" (and, if needed, any Boost libraries, "ompl_app_base" and "ompl_app") . To the "Library search path" section, add the location of the OMPL library files. For example, on a Linux system with default installation path, you should use "/usr/local/lib". Click Apply.
       8. Click OK to leave the Properties window. Click Finish.
 
    - __IDE's such as MS Visual Studio and Xcode:__ consult your IDE's manual.
-2. __Add your own code in OMPL's directory structure:__ This option is recommend if you extend functionality of OMPL that you wish to contribute back to the OMPL project (see [Third-Party Contributions](thirdparty.html) for details). OMPL uses [CMake](http://www.cmake.org) for its build system. CMake can generate Makefiles and project files for many IDE's. If you create C++ code under ompl/src/ompl/[folder], __you need to re-run CMake.__ CMake will detect your code if [folder] is one of the directories already included by OMPL. If you want your code to be in a different location, you should update ompl/src/ompl/CMakeLists.txt accordingly. See the [Python documentation](python.html#updating_python_bindings) for specific instructions on how to create python bindings for your own code.
+2. __Add your own code in OMPL's directory structure:__ This option is recommend if you extend functionality of OMPL that you wish to contribute back to the OMPL project (see [Third-Party Contributions](thirdparty.html) for details). OMPL uses [CMake](https://www.cmake.org) for its build system. CMake can generate Makefiles and project files for many IDE's. If you create C++ code under ompl/src/ompl/[folder], __you need to re-run CMake.__ CMake will detect your code if [folder] is one of the directories already included by OMPL. If you want your code to be in a different location, you should update ompl/src/ompl/CMakeLists.txt accordingly. See the [Python documentation](python.html#updating_python_bindings) for specific instructions on how to create python bindings for your own code.

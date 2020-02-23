@@ -42,6 +42,7 @@
 #include "ompl/control/planners/syclop/GridDecomposition.h"
 #include "ompl/util/RandomNumbers.h"
 #include "ompl/util/Hash.h"
+#include "ompl/util/String.h"
 #include <ostream>
 #include <utility>
 #include <vector>
@@ -215,7 +216,7 @@ int ompl::control::TriangularDecomposition::createTriangles()
        the total area of the decomposition space */
     const base::RealVectorBounds &bounds = getBounds();
     const double maxTriangleArea = bounds.getVolume() * triAreaPct_;
-    std::string triswitches = "pDznQA -a" + std::to_string(maxTriangleArea);
+    std::string triswitches = "pDznQA -a" + ompl::toString(maxTriangleArea);
     struct triangulateio in;
 
     /* Some vertices may be duplicates, such as when an obstacle has a vertex equivalent
@@ -238,13 +239,10 @@ int ompl::control::TriangularDecomposition::createTriangles()
     in.numberofpoints = 4;
     in.numberofsegments = 4;
 
-    using PolyIter = std::vector<Polygon>::const_iterator;
-    using VertexIter = std::vector<Vertex>::const_iterator;
-
     // Run through obstacle vertices in holes_, and tally point and segment counters
-    for (PolyIter p = holes_.begin(); p != holes_.end(); ++p)
+    for (auto &p : holes_)
     {
-        for (auto pt : p->pts)
+        for (auto &pt : p.pts)
         {
             ++in.numberofsegments;
             /* Only assign an index to this vertex (and tally the point counter)
@@ -256,9 +254,9 @@ int ompl::control::TriangularDecomposition::createTriangles()
 
     /* Run through region-of-interest vertices in intRegs_, and tally point and segment counters.
        Here we're following the same logic as above with holes_. */
-    for (PolyIter p = intRegs_.begin(); p != intRegs_.end(); ++p)
+    for (auto &p : intRegs_)
     {
-        for (auto pt : p->pts)
+        for (auto &pt : p.pts)
         {
             ++in.numberofsegments;
             if (pointIndex.find(pt) == pointIndex.end())
@@ -295,24 +293,24 @@ int ompl::control::TriangularDecomposition::createTriangles()
 
     /* Now, add segments for each obstacle in holes_, using our index map
        from before to get the pointlist index for each vertex */
-    for (PolyIter p = holes_.begin(); p != holes_.end(); ++p)
+    for (auto &p : holes_)
     {
-        for (unsigned int j = 0; j < p->pts.size(); ++j)
+        for (unsigned int j = 0; j < p.pts.size(); ++j)
         {
-            in.segmentlist[2 * segIndex] = pointIndex[p->pts[j]];
-            in.segmentlist[2 * segIndex + 1] = pointIndex[p->pts[(j + 1) % p->pts.size()]];
+            in.segmentlist[2 * segIndex] = pointIndex[p.pts[j]];
+            in.segmentlist[2 * segIndex + 1] = pointIndex[p.pts[(j + 1) % p.pts.size()]];
             ++segIndex;
         }
     }
 
     /* Now, add segments for each region-of-interest in intRegs_,
        using the same logic as before. */
-    for (PolyIter p = intRegs_.begin(); p != intRegs_.end(); ++p)
+    for (auto &p : intRegs_)
     {
-        for (unsigned int j = 0; j < p->pts.size(); ++j)
+        for (unsigned int j = 0; j < p.pts.size(); ++j)
         {
-            in.segmentlist[2 * segIndex] = pointIndex[p->pts[j]];
-            in.segmentlist[2 * segIndex + 1] = pointIndex[p->pts[(j + 1) % p->pts.size()]];
+            in.segmentlist[2 * segIndex] = pointIndex[p.pts[j]];
+            in.segmentlist[2 * segIndex + 1] = pointIndex[p.pts[(j + 1) % p.pts.size()]];
             ++segIndex;
         }
     }

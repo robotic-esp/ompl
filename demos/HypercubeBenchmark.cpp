@@ -41,6 +41,7 @@
 #include <ompl/geometric/planners/prm/PRM.h>
 #include <ompl/geometric/planners/stride/STRIDE.h>
 #include <ompl/tools/benchmark/Benchmark.h>
+#include <ompl/util/String.h>
 
 #include <boost/math/constants/constants.hpp>
 #include <boost/format.hpp>
@@ -67,21 +68,21 @@ bool isStateValid(const ompl::base::State *state)
         }
         else if ((*s)[i] < (1. - edgeWidth))
             return false;
-        return true;
+    return true;
 }
 
 void addPlanner(ompl::tools::Benchmark& benchmark, const ompl::base::PlannerPtr& planner, double range)
 {
     ompl::base::ParamSet& params = planner->params();
     if (params.hasParam(std::string("range")))
-        params.setParam(std::string("range"), std::to_string(range));
+        params.setParam(std::string("range"), ompl::toString(range));
     benchmark.addPlanner(planner);
 }
 
 int main(int argc, char **argv)
 {
     if(argc > 1)
-        ndim = boost::lexical_cast<size_t>(argv[1]);
+        ndim = std::stoul(argv[1]);
 
     double range = edgeWidth * 0.5;
     auto space(std::make_shared<ompl::base::RealVectorStateSpace>(ndim));

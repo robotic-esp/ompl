@@ -58,6 +58,7 @@ Lifelong Planning A. Artif. Intell. 155(1-2): 93-146 (2004)
 #include <boost/type_traits/ice.hpp>
 #endif
 
+#include <boost/functional/hash.hpp> // fix for Boost < 1.68
 #include <boost/graph/adjacency_matrix.hpp>
 #include <boost/graph/adjacency_list.hpp>
 
@@ -395,11 +396,8 @@ namespace ompl
 
         void clear()
         {
-            for (auto iter = idNodeMap_.begin(); iter != idNodeMap_.end(); ++iter)
-            {
-                Node *n = iter->second;
-                delete n;
-            }
+            for (auto &id : idNodeMap_)
+                delete id.second;
         }
 
         Heuristic &costEstimator_;

@@ -37,6 +37,7 @@
 #include "ompl/geometric/planners/cforest/CForest.h"
 #include "ompl/geometric/planners/rrt/RRTstar.h"
 #include "ompl/base/objectives/PathLengthOptimizationObjective.h"
+#include "ompl/util/String.h"
 #include <thread>
 
 ompl::geometric::CForest::CForest(const base::SpaceInformationPtr &si) : base::Planner(si, "CForest")
@@ -182,8 +183,7 @@ ompl::base::PlannerStatus ompl::geometric::CForest::solve(const base::PlannerTer
         OMPL_WARN("Cannot use previously set intermediate solution callback with %s", getName().c_str());
 
     pdef_->setIntermediateSolutionCallback(
-        [this](const base::Planner *planner, const std::vector<const base::State *> &states, const base::Cost cost)
-        {
+        [this](const base::Planner *planner, const std::vector<const base::State *> &states, const base::Cost cost) {
             return newSolutionFound(planner, states, cost);
         });
     bestCost_ = opt_->infiniteCost();
@@ -207,12 +207,12 @@ ompl::base::PlannerStatus ompl::geometric::CForest::solve(const base::PlannerTer
     // restore callback
     getProblemDefinition()->setIntermediateSolutionCallback(prevSolutionCallback);
     OMPL_INFORM("Solution found in %f seconds", time::seconds(time::now() - start));
-    return base::PlannerStatus(pdef_->hasSolution(), pdef_->hasApproximateSolution());
+    return {pdef_->hasSolution(), pdef_->hasApproximateSolution()};
 }
 
 std::string ompl::geometric::CForest::getBestCost() const
 {
-    return std::to_string(bestCost_.value());
+    return ompl::toString(bestCost_.value());
 }
 
 std::string ompl::geometric::CForest::getNumPathsShared() const

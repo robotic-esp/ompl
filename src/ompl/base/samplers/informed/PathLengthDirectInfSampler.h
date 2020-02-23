@@ -37,11 +37,6 @@
 #ifndef OMPL_BASE_SAMPLERS_INFORMED_PATH_LENGTH_DIRECT_INFORMED_SAMPLER_
 #define OMPL_BASE_SAMPLERS_INFORMED_PATH_LENGTH_DIRECT_INFORMED_SAMPLER_
 
-#include <ompl/config.h>
-#if !OMPL_HAVE_EIGEN3
-#error The PathLengthDirectInfSampler class uses Eigen3, which was not detected at build time.
-#endif
-
 // We inherit from InformedStateSampler
 #include "ompl/base/samplers/InformedStateSampler.h"
 
@@ -78,8 +73,8 @@ namespace ompl
             of the IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). Chicago, IL, USA,
             14-18 Sept. 2014.
             DOI: <a href="http://dx.doi.org/10.1109/IROS.2014.6942976">10.1109/IROS.2014.6942976</a>.
-            <a href="http://www.youtube.com/watch?v=d7dX5MvDYTc">Illustration video</a>.
-            <a href="http://www.youtube.com/watch?v=nsl-5MZfwu4">Short description video</a>.
+            <a href="https://www.youtube.com/watch?v=d7dX5MvDYTc">Illustration video</a>.
+            <a href="https://www.youtube.com/watch?v=nsl-5MZfwu4">Short description video</a>.
         */
 
         /** \brief An informed sampler for problems seeking to minimize path length.*/
@@ -132,7 +127,7 @@ namespace ompl
 
         private:
             /** \brief A constant pointer to ProlateHyperspheroid */
-            typedef std::shared_ptr<const ompl::ProlateHyperspheroid> ProlateHyperspheroidCPtr;
+            using ProlateHyperspheroidCPtr = std::shared_ptr<const ompl::ProlateHyperspheroid>;
 
             // Helper functions:
             // High level

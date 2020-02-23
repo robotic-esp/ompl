@@ -37,11 +37,6 @@
 #ifndef OMPL_UTIL_PROLATE_HYPERSPHEROID_
 #define OMPL_UTIL_PROLATE_HYPERSPHEROID_
 
-#include <ompl/config.h>
-#if !OMPL_HAVE_EIGEN3
-#error The ProlateHyperspheroid class uses Eigen3, which was not detected at build time.
-#endif
-
 #include <memory>
 
 // For ease-of-use shared_ptr definition
@@ -61,8 +56,8 @@ namespace ompl
     of the IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS). Chicago, IL, USA,
     14-18 Sept. 2014.
     DOI: <a href="http://dx.doi.org/10.1109/IROS.2014.6942976">10.1109/IROS.2014.6942976</a>.
-    <a href="http://www.youtube.com/watch?v=d7dX5MvDYTc">Illustration video</a>.
-    <a href="http://www.youtube.com/watch?v=nsl-5MZfwu4">Short description video</a>. */
+    <a href="https://www.youtube.com/watch?v=d7dX5MvDYTc">Illustration video</a>.
+    <a href="https://www.youtube.com/watch?v=nsl-5MZfwu4">Short description video</a>. */
     class ProlateHyperspheroid
     {
     public:

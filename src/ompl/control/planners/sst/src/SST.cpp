@@ -111,7 +111,8 @@ void ompl::control::SST::clear()
         nn_->clear();
     if (witnesses_)
         witnesses_->clear();
-    prevSolutionCost_ = opt_->infiniteCost();
+    if (opt_)
+        prevSolutionCost_ = opt_->infiniteCost();
 }
 
 void ompl::control::SST::freeMemory()
@@ -344,10 +345,11 @@ ompl::base::PlannerStatus ompl::control::SST::solve(const base::PlannerTerminati
 
                 if (oldRep != rmotion)
                 {
-                    oldRep->inactive_ = true;
-                    nn_->remove(oldRep);
                     while (oldRep->inactive_ && oldRep->numChildren_ == 0)
                     {
+                        oldRep->inactive_ = true;
+                        nn_->remove(oldRep);
+
                         if (oldRep->state_)
                             si_->freeState(oldRep->state_);
                         if (oldRep->control_)
@@ -395,7 +397,7 @@ ompl::base::PlannerStatus ompl::control::SST::solve(const base::PlannerTerminati
 
     OMPL_INFORM("%s: Created %u states in %u iterations", getName().c_str(), nn_->size(), iterations);
 
-    return base::PlannerStatus(solved, approximate);
+    return {solved, approximate};
 }
 
 void ompl::control::SST::getPlannerData(base::PlannerData &data) const

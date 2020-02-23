@@ -42,7 +42,7 @@
 #include <ompl/geometric/PathGeometric.h>
 #include <ompl/base/SpaceInformation.h>
 
-#include <boost/numeric/ublas/matrix.hpp>
+#include <Eigen/Core>
 
 namespace ompl
 {
@@ -86,11 +86,13 @@ namespace ompl
             base::SpaceInformationPtr si_;
 
             /** \brief Distance matrix */
-            mutable boost::numeric::ublas::matrix<double> table_;
+            mutable Eigen::MatrixXd table_;
 
+        public:
+            EIGEN_MAKE_ALIGNED_OPERATOR_NEW
         };  // end of class
 
-    }  // namespace
-}  // namespace
+    }  // namespace tools
+}  // namespace ompl
 
 #endif

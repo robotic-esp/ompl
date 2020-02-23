@@ -168,9 +168,9 @@ void ompl::msg::OutputHandlerSTD::log(const std::string &text, LogLevel level, c
         if (isTTY)
             std::cout << LogColorString[level + 2];
         std::cout << LogLevelString[level + 2] << text << std::endl;
-        std::cout.flush();
         if (isTTY)
             std::cout << ANSI_COLOR_RESET;
+        std::cout.flush();
     }
 }
 
@@ -192,7 +192,7 @@ void ompl::msg::OutputHandlerFile::log(const std::string &text, LogLevel level, 
 {
     if (file_ != nullptr)
     {
-        fprintf(file_, "%s%s\n", LogLevelString[level], text.c_str());
+        fprintf(file_, "%s%s\n", LogLevelString[level + 2], text.c_str());
         if (level >= LOG_WARN)
             fprintf(file_, "         at line %d in %s\n", line, filename);
         fflush(file_);
