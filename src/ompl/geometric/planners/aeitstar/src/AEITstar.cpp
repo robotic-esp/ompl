@@ -283,6 +283,11 @@ namespace ompl
             }
         }
 
+        void AEITstar::setLocalSeed(std::uint_fast32_t localSeed)
+        {
+            graph_.setLocalSeed(localSeed);
+        }
+
         void AEITstar::iterate()
         {
             // Increment the iteration count.
@@ -620,7 +625,7 @@ namespace ompl
         }
 
         void AEITstar::repairReverseSearchTree(const aeitstar::Edge &invalidEdge,
-                                                std::shared_ptr<aeitstar::State> &invalidatedState)
+                                               std::shared_ptr<aeitstar::State> &invalidatedState)
         {
             // The edge is invalid. The reverse tree can be updated.
             invalidatedState->asReverseVertex()->setEdgeCost(objective_->infiniteCost());

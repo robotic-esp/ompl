@@ -109,6 +109,10 @@ namespace ompl
             /** \brief Get the planner data. */
             void getPlannerData(base::PlannerData &data) const override;
 
+            /** \brief Set the seed used by the RNG and the StateSampler. The state sampler must already be allocated,
+             * as a new state sampler will not take this seed. */
+            void setLocalSeed(std::uint_fast32_t localSeed);
+
         private:
             /** \brief The different phases the algorithm can be in. */
             enum class Phase
@@ -191,7 +195,8 @@ namespace ompl
              * collision on an edge. */
             bool isRepairingOfReverseTreeEnabled_{false};
 
-            /** \brief The option that specifies whether sparse collision detection on the reverse search tree is enabled. */
+            /** \brief The option that specifies whether sparse collision detection on the reverse search tree is
+             * enabled. */
             bool isCollisionDetectionInReverseTreeEnabled_{false};
 
             /** \brief The interpolation values used for the sparse collision detection on the reverse search. */

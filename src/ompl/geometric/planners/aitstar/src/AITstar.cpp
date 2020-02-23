@@ -338,6 +338,11 @@ namespace ompl
             return vertices;
         }
 
+        void AITstar::setLocalSeed(std::uint_fast32_t localSeed)
+        {
+            graph_.setLocalSeed(localSeed);
+        }
+
         void AITstar::iterate()
         {
             // Keep track of the number of iterations.

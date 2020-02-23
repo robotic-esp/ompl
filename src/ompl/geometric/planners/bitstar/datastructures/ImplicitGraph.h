@@ -274,13 +274,14 @@ namespace ompl
              * The check should always be g^(v) + h^(v) >= g_t(x_g). */
             bool canSampleBePruned(const VertexPtr &sample) const;
 
-            /** \brief Set the seed used by the RNG and the StateSampler. The state sampler must already be allocated, as a new state sampler will *not* take this seed. */
+            /** \brief Set the seed used by the RNG and the StateSampler. The state sampler must already be allocated,
+             * as a new state sampler will not take this seed. */
             void setLocalSeed(std::uint_fast32_t localSeed)
             {
-                //Set the local RNG seed:
+                // Set the local RNG seed:
                 rng_.setLocalSeed(localSeed);
 
-                //Set the sampler's seed, if present:
+                // Set the sampler's seed, if present:
                 if (sampler_)
                 {
                     sampler_->setLocalSeed(localSeed);

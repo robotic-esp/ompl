@@ -104,6 +104,16 @@ namespace ompl
                 /** \brief Get all vertices. */
                 std::vector<std::shared_ptr<Vertex>> getVertices() const;
 
+                /** \brief Set the seed used by the RNG and the StateSampler. The state sampler must already be
+                 * allocated, as a new state sampler will not take this seed. */
+                void setLocalSeed(std::uint_fast32_t localSeed)
+                {
+                    if (sampler_)
+                    {
+                        sampler_->setLocalSeed(localSeed);
+                    }
+                };
+
             private:
                 /** \brief Computes the number of samples in the informed set. */
                 std::size_t computeNumberOfSamplesInInformedSet() const;

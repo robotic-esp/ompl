@@ -98,6 +98,10 @@ namespace ompl
             /** \brief Get the vertices in the backward search tree. */
             std::vector<std::shared_ptr<aitstar::Vertex>> getVerticesInBackwardSearchTree() const;
 
+            /** \brief Set the seed used by the RNG and the StateSampler. The state sampler must already be allocated,
+             * as a new state sampler will *not* take this seed. */
+            void setLocalSeed(std::uint_fast32_t localSeed);
+
         private:
             /** \brief Performs one iteration of AIT*. */
             void iterate();
