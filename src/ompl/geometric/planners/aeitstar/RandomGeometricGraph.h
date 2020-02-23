@@ -34,12 +34,12 @@
 
 // Authors: Marlin Strub
 
-#ifndef OMPL_GEOMETRIC_PLANNERS_AIBITSTAR_RANDOM_GEOMETRIC_GRAPH_
-#define OMPL_GEOMETRIC_PLANNERS_AIBITSTAR_RANDOM_GEOMETRIC_GRAPH_
+#ifndef OMPL_GEOMETRIC_PLANNERS_AEITSTAR_RANDOM_GEOMETRIC_GRAPH_
+#define OMPL_GEOMETRIC_PLANNERS_AEITSTAR_RANDOM_GEOMETRIC_GRAPH_
 
 #include <limits>
 #include <memory>
-#include <iostream>  // This is needed for ompl's nearest neighbors struct...
+#include <iostream>  // This is needed for ompl's nearest neighbors struct.
 
 #include "ompl/datastructures/NearestNeighborsGNATNoThreadSafety.h"
 #include "ompl/base/samplers/InformedStateSampler.h"
@@ -162,4 +162,4 @@ namespace ompl
 
 }  // namespace ompl
 
-#endif  // OMPL_GEOMETRIC_PLANNERS_AIBITSTAR_RANDOM_GEOMETRIC_GRAPH_
+#endif  // OMPL_GEOMETRIC_PLANNERS_AEITSTAR_RANDOM_GEOMETRIC_GRAPH_

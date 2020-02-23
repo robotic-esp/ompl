@@ -34,8 +34,8 @@
 
 // Authors: Marlin Strub
 
-#ifndef OMPL_GEOMETRIC_PLANNERS_AIBITSTAR_STATE_
-#define OMPL_GEOMETRIC_PLANNERS_AIBITSTAR_STATE_
+#ifndef OMPL_GEOMETRIC_PLANNERS_AEITSTAR_STATE_
+#define OMPL_GEOMETRIC_PLANNERS_AEITSTAR_STATE_
 
 #include <memory>
 #include <set>
@@ -160,4 +160,4 @@ namespace ompl
 
 }  // namespace ompl
 
-#endif  // OMPL_GEOMETRIC_PLANNERS_AIBITSTAR_STATE_
+#endif  // OMPL_GEOMETRIC_PLANNERS_AEITSTAR_STATE_
