@@ -34,20 +34,24 @@
 
 // Authors: Marlin Strub
 
-#include "ompl/geometric/planners/aeitstar/Edge.h"
+#ifndef OMPL_GEOMETRIC_PLANNERS_AEITSTAR_DIRECTION_
+#define OMPL_GEOMETRIC_PLANNERS_AEITSTAR_DIRECTION_
 
 namespace ompl
 {
     namespace geometric
     {
-        namespace aeitstar
+        namespace eitstar
         {
-            Edge::Edge(const std::shared_ptr<State> &source, const std::shared_ptr<State> &target)
-              : source(source), target(target)
-            {
-            }
-        }  // namespace aeitstar
+            enum class Direction {
+                FORWARD,
+                REVERSE
+            };
+
+        }  // namespace aibitstar
 
     }  // namespace geometric
 
 }  // namespace ompl
+
+#endif  // OMPL_GEOMETRIC_PLANNERS_AEITSTAR_DIRECTION_

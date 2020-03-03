@@ -34,13 +34,13 @@
 
 // Authors: Marlin Strub
 
-#include "ompl/geometric/planners/aeitstar/stopwatch/timetable.h"
+#include "ompl/geometric/planners/eitstar/stopwatch/timetable.h"
 
 namespace ompl
 {
     namespace geometric
     {
-        namespace aeitstar
+        namespace eitstar
         {
             namespace timing
             {

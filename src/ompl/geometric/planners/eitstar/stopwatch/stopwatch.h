@@ -45,7 +45,7 @@ namespace ompl
 {
     namespace geometric
     {
-        namespace aeitstar
+        namespace eitstar
         {
             namespace timing
             {

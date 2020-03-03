@@ -34,47 +34,20 @@
 
 // Authors: Marlin Strub
 
-#ifndef OMPL_GEOMETRIC_PLANNERS_AEITSTAR_EDGE_
-#define OMPL_GEOMETRIC_PLANNERS_AEITSTAR_EDGE_
-
-#include <array>
-#include <limits>
-#include <memory>
-
-#include "ompl/base/Cost.h"
+#include "ompl/geometric/planners/eitstar/Edge.h"
 
 namespace ompl
 {
     namespace geometric
     {
-        namespace aeitstar
+        namespace eitstar
         {
-            // Forward declaration of state to break include cycle.
-            class State;
-
-            /** \brief A struct for basic edge data. */
-            struct Edge
+            Edge::Edge(const std::shared_ptr<State> &source, const std::shared_ptr<State> &target)
+              : source(source), target(target)
             {
-                /** \brief OMPL's heap unfortunately only works for default constructable element. */
-                Edge() = default;
-
-                /** \brief Construct the edge by providing source and target states. */
-                Edge(const std::shared_ptr<State> &source, const std::shared_ptr<State> &target);
-
-                /** \brief Destruct the edge. */
-                ~Edge() = default;
-
-                /** \brief The parent state of this edge. */
-                std::shared_ptr<State> source;
-
-                /** \brief The child state of this edge. */
-                std::shared_ptr<State> target;
-            };
-
-        }  // namespace aeitstar
+            }
+        }  // namespace eitstar
 
     }  // namespace geometric
 
 }  // namespace ompl
-
-#endif  // OMPL_GEOMETRIC_PLANNERS_AEITSTAR_EDGE_

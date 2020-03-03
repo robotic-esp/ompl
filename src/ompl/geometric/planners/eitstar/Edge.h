@@ -34,24 +34,47 @@
 
 // Authors: Marlin Strub
 
-#ifndef OMPL_GEOMETRIC_PLANNERS_AEITSTAR_DIRECTION_
-#define OMPL_GEOMETRIC_PLANNERS_AEITSTAR_DIRECTION_
+#ifndef OMPL_GEOMETRIC_PLANNERS_AEITSTAR_EDGE_
+#define OMPL_GEOMETRIC_PLANNERS_AEITSTAR_EDGE_
+
+#include <array>
+#include <limits>
+#include <memory>
+
+#include "ompl/base/Cost.h"
 
 namespace ompl
 {
     namespace geometric
     {
-        namespace aeitstar
+        namespace eitstar
         {
-            enum class Direction {
-                FORWARD,
-                REVERSE
+            // Forward declaration of state to break include cycle.
+            class State;
+
+            /** \brief A struct for basic edge data. */
+            struct Edge
+            {
+                /** \brief OMPL's heap unfortunately only works for default constructable element. */
+                Edge() = default;
+
+                /** \brief Construct the edge by providing source and target states. */
+                Edge(const std::shared_ptr<State> &source, const std::shared_ptr<State> &target);
+
+                /** \brief Destruct the edge. */
+                ~Edge() = default;
+
+                /** \brief The parent state of this edge. */
+                std::shared_ptr<State> source;
+
+                /** \brief The child state of this edge. */
+                std::shared_ptr<State> target;
             };
 
-        }  // namespace aibitstar
+        }  // namespace eitstar
 
     }  // namespace geometric
 
 }  // namespace ompl
 
-#endif  // OMPL_GEOMETRIC_PLANNERS_AEITSTAR_DIRECTION_
+#endif  // OMPL_GEOMETRIC_PLANNERS_AEITSTAR_EDGE_
