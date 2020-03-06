@@ -486,7 +486,7 @@ namespace ompl
             assert(edge.source->hasReverseVertex());
 
             // Check whether we can suspend the reverse search.
-            if (jitSearchEdgeCache_.empty() && !doesImproveReversePath(edge))
+            if ((jitSearchEdgeCache_.empty() && !doesImproveReversePath(edge)) || reverseQueue_->empty())
             {
                 // Update the search tag.
                 ++searchTag_;
@@ -533,6 +533,9 @@ namespace ompl
                 // We're done with the reverse search for now.
                 return;
             }
+
+            // This edge needs to be processed, pop it from the queue.
+            reverseQueue_->pop();
 
             // Simply expand the child vertex if the edge is already in the reverse tree, and the child has not been
             // expanded yet.
