@@ -307,32 +307,12 @@ namespace ompl
                 }
                 case Phase::IMPROVE_APPROXIMATION:
                 {
-                    // Add new states.
-                    graph_.addStates(numSamplesPerBatch_);
-
-                    // Reset the suboptimality factor.
-                    suboptimalityFactor_ = std::numeric_limits<double>::infinity();
-
-                    // Restart the reverse search.
-                    reverseRoot_.reset();
-                    reverseRoot_ = graph_.getGoalState()->asReverseVertex();
-                    reverseRoot_->setCost(objective_->identityCost());
-                    reverseRoot_->setExtendedCost(objective_->identityCost());
-                    reverseRoot_->setExpandTag(searchTag_);
-                    reverseRoot_->getState()->setEstimatedEffortToGo(0u);
-                    reverseQueue_->insert(expand(reverseRoot_->getState()));
-
-                    // If expanding the goal state actually produced edges, let's start the reverse search.
-                    // Otherwise, we stay in the improve approximation phase.
-                    if (!reverseQueue_->empty())
-                    {
-                        phase_ = Phase::REVERSE_SEARCH;
-                    }
+                    improveApproximation();
                     break;
                 }
                 default:
                 {
-                    // We should never reach this.
+                    // We should never reach here.
                     assert(false);
                 }
             };
@@ -358,7 +338,20 @@ namespace ompl
                     if (currentParent->getId() == edge.source->asForwardVertex()->getId() &&
                         edge.target->getId() != graph_.getGoalState()->getId())
                     {
-                        forwardQueue_->insert(expand(edge.target));
+                        // Get the outgoing edges of the child.
+                        jitSearchEdgeCache_ = expand(edge.target);
+
+                        // Insert them if they can be inserted.
+                        if (canBeInsertedInForwardQueue(jitSearchEdgeCache_))
+                        {
+                            forwardQueue_->insert(jitSearchEdgeCache_);
+                            jitSearchEdgeCache_.clear();
+                        }
+                        else
+                        {
+                            // The reverse search has work to do.
+                            phase_ = Phase::REVERSE_SEARCH;
+                        }
                         return;
                     }
                 }
@@ -407,8 +400,20 @@ namespace ompl
                             // Expand the outgoing edges into the queue unless this state is the goal state.
                             if (edge.target->getId() != graph_.getGoalState()->getId())
                             {
-                                // Expand the child vertex.
-                                forwardQueue_->insert(expand(edge.target));
+                                // Get the outgoing edges of the child.
+                                jitSearchEdgeCache_ = expand(edge.target);
+
+                                // Insert them if they can be inserted.
+                                if (canBeInsertedInForwardQueue(jitSearchEdgeCache_))
+                                {
+                                    forwardQueue_->insert(jitSearchEdgeCache_);
+                                    jitSearchEdgeCache_.clear();
+                                }
+                                else
+                                {
+                                    // The reverse search has work to do.
+                                    phase_ = Phase::REVERSE_SEARCH;
+                                }
                             }
                             else  // It is the goal state, update the solution.
                             {
@@ -475,10 +480,59 @@ namespace ompl
             assert(!reverseQueue_->empty());
 
             // Get the top edge from the queue.
-            auto edge = reverseQueue_->pop();
+            auto edge = reverseQueue_->peek();
 
             // The parent vertex must have an associated vertex in the tree.
             assert(edge.source->hasReverseVertex());
+
+            // Check whether we can suspend the reverse search.
+            if (jitSearchEdgeCache_.empty() && !doesImproveReversePath(edge))
+            {
+                // Update the search tag.
+                ++searchTag_;
+
+                // Insert the outgoing edges of the start into the forward queue if there could be a path.
+                if (forwardQueue_->empty() && forwardRoot_->getTwin().lock())
+                {
+                    assert(forwardRoot_->getState()->hasReverseVertex());
+                    if (forwardQueue_->empty())
+                    {
+                        // Get the outgoing edges of the child.
+                        jitSearchEdgeCache_ = expand(forwardRoot_->getState());
+
+                        // Insert them if they can be inserted and the forward search can be started..
+                        if (canBeInsertedInForwardQueue(jitSearchEdgeCache_))
+                        {
+                            forwardQueue_->insert(jitSearchEdgeCache_);
+                            jitSearchEdgeCache_.clear();
+                            phase_ = Phase::FORWARD_SEARCH;
+                        }
+                    }
+                    else
+                    {
+                        // Rebuild the forward queue, as the reverse search might have updated the used heuristics.
+                        forwardQueue_->rebuild();
+
+                        // If the forward queue is empty now, we're done with this batch because all edges that were in
+                        // the queue were invalidated by repairing the reverse search.
+                        if (forwardQueue_->empty())
+                        {
+                            phase_ = Phase::IMPROVE_APPROXIMATION;
+                        }
+                        else
+                        {
+                            phase_ = Phase::FORWARD_SEARCH;
+                        }
+                    }
+                }
+                else
+                {
+                    phase_ = Phase::IMPROVE_APPROXIMATION;
+                }
+
+                // We're done with the reverse search for now.
+                return;
+            }
 
             // Simply expand the child vertex if the edge is already in the reverse tree, and the child has not been
             // expanded yet.
@@ -542,41 +596,39 @@ namespace ompl
                 }
             }
 
-            // Check if this was the last edge in the reverse queue.
-            // TODO: This means we always check all edges in the graph. Is this really necessary?
-            if (reverseQueue_->empty())
+            // If there are edges to be inserted in the forward queue, check if they can be inserted now.
+            if (!jitSearchEdgeCache_.empty())
             {
-                // Update the search tag.
-                ++searchTag_;
+                if (canBeInsertedInForwardQueue(jitSearchEdgeCache_))
+                {
+                    forwardQueue_->insert(jitSearchEdgeCache_);
+                    jitSearchEdgeCache_.clear();
+                }
+            }
+        }
 
-                // Insert the outgoing edges of the start into the forward queue if there could be a path.
-                if (forwardRoot_->getTwin().lock())
-                {
-                    assert(forwardRoot_->getState()->hasReverseVertex());
-                    if (forwardQueue_->empty())
-                    {
-                        forwardQueue_->insert(expand(forwardRoot_->getState()));
-                        phase_ = Phase::FORWARD_SEARCH;
-                    }
-                    else
-                    {
-                        forwardQueue_->rebuild();
-                        // If the forward queue is empty now, we're done with this batch because all edges that were in
-                        // the queue were invalidated by repairing the reverse search.
-                        if (!forwardQueue_->empty())
-                        {
-                            phase_ = Phase::FORWARD_SEARCH;
-                        }
-                        else
-                        {
-                            phase_ = Phase::IMPROVE_APPROXIMATION;
-                        }
-                    }
-                }
-                else
-                {
-                    phase_ = Phase::IMPROVE_APPROXIMATION;
-                }
+        void EITstar::improveApproximation()
+        {
+            // Add new states.
+            graph_.addStates(numSamplesPerBatch_);
+
+            // Reset the suboptimality factor.
+            suboptimalityFactor_ = std::numeric_limits<double>::infinity();
+
+            // Restart the reverse search.
+            reverseRoot_.reset();
+            reverseRoot_ = graph_.getGoalState()->asReverseVertex();
+            reverseRoot_->setCost(objective_->identityCost());
+            reverseRoot_->setExtendedCost(objective_->identityCost());
+            reverseRoot_->setExpandTag(searchTag_);
+            reverseRoot_->getState()->setEstimatedEffortToGo(0u);
+            reverseQueue_->insert(expand(reverseRoot_->getState()));
+
+            // If expanding the goal state actually produced edges, let's start the reverse search.
+            // Otherwise, we stay in the improve approximation phase.
+            if (!reverseQueue_->empty())
+            {
+                phase_ = Phase::REVERSE_SEARCH;
             }
         }
 
@@ -625,7 +677,7 @@ namespace ompl
         }
 
         void EITstar::repairReverseSearchTree(const eitstar::Edge &invalidEdge,
-                                                std::shared_ptr<eitstar::State> &invalidatedState)
+                                              std::shared_ptr<eitstar::State> &invalidatedState)
         {
             // The edge is invalid. The reverse tree can be updated.
             invalidatedState->asReverseVertex()->setEdgeCost(objective_->infiniteCost());
@@ -827,7 +879,7 @@ namespace ompl
                     objective_->combineCosts(
                         edge.source->asForwardVertex()->getCost(),
                         objective_->combineCosts(trueEdgeCost,
-                                                 edge.target->asForwardVertex()->getTwin().lock()->getCost())),
+                                                 objective_->costToGo(edge.target->raw(), problem_->getGoal().get()))),
                     reverseRootForwardVertex->getCost());
             }
             else
@@ -912,6 +964,18 @@ namespace ompl
                 }
                 return true;
             }
+        }
+
+        bool EITstar::canBeInsertedInForwardQueue(const std::vector<eitstar::Edge> &edges) const
+        {
+            for (const auto &edge : edges)
+            {
+                if (!edge.source->hasReverseVertex() || !edge.target->hasReverseVertex())
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         std::tuple<std::shared_ptr<eitstar::State>, ompl::base::Cost, ompl::base::Cost>
@@ -1006,8 +1070,14 @@ namespace ompl
                     // Get the state associated with the parent vertex.
                     auto forwardParentState = forwardVertex->getParent().lock()->getState();
 
-                    // Add the edge to the forward tree parent.
-                    outgoingEdges.emplace_back(state, forwardParentState);
+                    // Add the edge to the forward tree parent if it has not already being added.
+                    if (std::find_if(outgoingEdges.cbegin(), outgoingEdges.cend(),
+                                     [&forwardParentState](const auto &edge) {
+                                         return edge.target->getId() == forwardParentState->getId();
+                                     }) == outgoingEdges.cend())
+                    {
+                        outgoingEdges.emplace_back(state, forwardParentState);
+                    }
                 }
 
                 // Add the edge to the forward children.
@@ -1016,8 +1086,14 @@ namespace ompl
                     // Get the state associated with the child vertex.
                     auto forwardChildState = child->getState();
 
-                    // Add the edge to the child to the outgoing edges.
-                    outgoingEdges.emplace_back(state, forwardChildState);
+                    // Add the edge to the forward tree child if it has not already being added.
+                    if (std::find_if(outgoingEdges.cbegin(), outgoingEdges.cend(),
+                                     [&forwardChildState](const auto &edge) {
+                                         return edge.target->getId() == forwardChildState->getId();
+                                     }) == outgoingEdges.cend())
+                    {
+                        outgoingEdges.emplace_back(state, forwardChildState);
+                    }
                 }
             }
 
@@ -1036,8 +1112,14 @@ namespace ompl
                     // Get the state associated with the parent vertex.
                     auto reverseParentState = reverseVertex->getParent().lock()->getState();
 
-                    // Add the edge to the reverse tree parent.
-                    outgoingEdges.emplace_back(state, reverseParentState);
+                    // Add the edge to the reverse tree parent if it has not already being added.
+                    if (std::find_if(outgoingEdges.cbegin(), outgoingEdges.cend(),
+                                     [&reverseParentState](const auto &edge) {
+                                         return edge.target->getId() == reverseParentState->getId();
+                                     }) == outgoingEdges.cend())
+                    {
+                        outgoingEdges.emplace_back(state, reverseParentState);
+                    }
                 }
 
                 // Add the edge to the reverse children.
@@ -1046,8 +1128,14 @@ namespace ompl
                     // Get the state associated with the child vertex.
                     auto reverseChildState = child->getState();
 
-                    // Add the edge to the child to the outgoing edges.
-                    outgoingEdges.emplace_back(state, reverseChildState);
+                    // Add the edge to the reverse tree parent if it has not already being added.
+                    if (std::find_if(outgoingEdges.cbegin(), outgoingEdges.cend(),
+                                     [&reverseChildState](const auto &edge) {
+                                         return edge.target->getId() == reverseChildState->getId();
+                                     }) == outgoingEdges.cend())
+                    {
+                        outgoingEdges.emplace_back(state, reverseChildState);
+                    }
                 }
             }
 
