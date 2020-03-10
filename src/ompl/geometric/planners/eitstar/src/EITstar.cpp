@@ -52,7 +52,7 @@ namespace ompl
         using namespace eitstar;
 
         EITstar::EITstar(const std::shared_ptr<ompl::base::SpaceInformation> &spaceInfo)
-          : ompl::base::Planner(spaceInfo, "AEIT*")
+          : ompl::base::Planner(spaceInfo, "EIT*")
           , graph_(spaceInfo)
           , detectionState_(spaceInfo->allocState())
           , space_(spaceInfo->getStateSpace())
@@ -70,14 +70,14 @@ namespace ompl
             // Check that the problem definition is set.
             if (!problem_)
             {
-                OMPL_ERROR("AEIT* can not be setup without first setting the problem definition.");
+                OMPL_ERROR("EIT* can not be setup without first setting the problem definition.");
                 return;
             }
 
             // Check the goal is of appropriate type.
             if (!problem_->getGoal()->hasType(ompl::base::GOAL_STATE))
             {
-                OMPL_ERROR("AEIT* currently only works for single goal states.");
+                OMPL_ERROR("EIT* currently only works for single goal states.");
                 return;
             }
 
@@ -307,6 +307,8 @@ namespace ompl
                 }
                 case Phase::IMPROVE_APPROXIMATION:
                 {
+                    reverseQueue_->clear();
+                    forwardQueue_->clear();
                     improveApproximation();
                     break;
                 }
@@ -470,7 +472,6 @@ namespace ompl
             // If the forward queue is empty, move on to the next phase.
             if (phase_ == Phase::FORWARD_SEARCH && forwardQueue_->empty())
             {
-                reverseQueue_->clear();
                 phase_ = Phase::IMPROVE_APPROXIMATION;
             }
         }
@@ -642,7 +643,6 @@ namespace ompl
                 }
                 else
                 {
-                    forwardQueue_->clear();
                     phase_ = Phase::IMPROVE_APPROXIMATION;
                 }
             }
@@ -655,6 +655,9 @@ namespace ompl
 
             // Reset the suboptimality factor.
             suboptimalityFactor_ = std::numeric_limits<double>::infinity();
+
+            // Reset the reverse collision detection.
+            detectionInterpolationValues_.clear();
 
             // Restart the reverse search.
             reverseRoot_.reset();
@@ -823,15 +826,13 @@ namespace ompl
                 if (insertedEdge)
                 {
                     jitSearchEdgeCache_ = forwardQueue_->getEdges();
+                    forwardQueue_->clear();
                     phase_ = reverseQueue_->empty() ? Phase::IMPROVE_APPROXIMATION : Phase::REVERSE_SEARCH;
                 }
                 else
                 {
                     phase_ = Phase::IMPROVE_APPROXIMATION;
                 }
-
-                // Either way, the forward queue should be cleared.
-                forwardQueue_->clear();
             }
         }
 
@@ -862,13 +863,13 @@ namespace ompl
             {
                 // Store the edges in the forward queue in the cache.
                 jitSearchEdgeCache_ = forwardQueue_->getEdges();
+                forwardQueue_->clear();
                 phase_ = Phase::REVERSE_SEARCH;
             }
             else
             {
                 phase_ = Phase::IMPROVE_APPROXIMATION;
             }
-            forwardQueue_->clear();
         }
 
         bool EITstar::couldImproveForwardPath(const Edge &edge) const
@@ -954,22 +955,25 @@ namespace ompl
                 return false;
             }
             // Ok, fine, we have to do work.
-            else if (motionValidator_->checkMotion(edge.source->raw(), edge.target->raw()))
-            {
-                // Whitelist this edge.
-                edge.source->whitelist(edge.target);
-                edge.target->whitelist(edge.source);
-                return true;
-            }
             else
             {
-                // Blacklist this edge.
-                edge.source->blacklist(edge.target);
-                edge.target->blacklist(edge.source);
+                if (motionValidator_->checkMotion(edge.source->raw(), edge.target->raw()))
+                {
+                    // Whitelist this edge.
+                    edge.source->whitelist(edge.target);
+                    edge.target->whitelist(edge.source);
+                    return true;
+                }
+                else
+                {
+                    // Blacklist this edge.
+                    edge.source->blacklist(edge.target);
+                    edge.target->blacklist(edge.source);
 
-                // Register it with the graph.
-                graph_.registerInvalidEdge(edge);
-                return false;
+                    // Register it with the graph.
+                    graph_.registerInvalidEdge(edge);
+                    return false;
+                }
             }
         }
 

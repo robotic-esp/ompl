@@ -119,7 +119,7 @@ namespace ompl
             {
                 auto it = std::find_if(queue_.begin(), queue_.end(), [&edge](const auto &keyEdgePair) {
                     return keyEdgePair.second.source->getId() == edge.source->getId() &&
-                           keyEdgePair.second.target->getId() && edge.target->getId();
+                           keyEdgePair.second.target->getId() == edge.target->getId();
                 });
 
                 if (it != queue_.end())
@@ -283,6 +283,7 @@ namespace ompl
 
             void ForwardQueue::clear()
             {
+                // Can simply call clear here, as we don't store pointers to edges in the forward queue.
                 queue_.clear();
             }
 
