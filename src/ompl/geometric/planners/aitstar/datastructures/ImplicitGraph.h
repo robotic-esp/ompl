@@ -104,6 +104,9 @@ namespace ompl
                 /** \brief Get all vertices. */
                 std::vector<std::shared_ptr<Vertex>> getVertices() const;
 
+                /** \brief Prune all samples that can not contribute to a solution better than the current one. */
+                void prune();
+
                 /** \brief Set the seed used by the RNG and the StateSampler. The state sampler must already be
                  * allocated, as a new state sampler will not take this seed. */
                 void setLocalSeed(std::uint_fast32_t localSeed)
