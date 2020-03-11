@@ -257,14 +257,18 @@ namespace ompl
         {
             std::vector<aitstar::Edge> edges;
             forwardQueue_->getContent(edges);
+            for (const auto &edge : edges)
+            {
+                edge.getChild()->resetForwardQueueLookup();
+            }
             forwardQueue_->clear();
 
             if (haveAllVerticesBeenProcessed(edges))
             {
                 for (auto &edge : edges)
                 {
-                    forwardQueue_->insert(aitstar::Edge(edge.getParent(), edge.getChild(),
-                                                        computeSortKey(edge.getParent(), edge.getChild())));
+                    edge.getChild()->addToForwardQueueLookup(forwardQueue_->insert(aitstar::Edge(
+                        edge.getParent(), edge.getChild(), computeSortKey(edge.getParent(), edge.getChild()))));
                 }
             }
             else
@@ -369,8 +373,8 @@ namespace ompl
                     {
                         if (haveAllVerticesBeenProcessed(edge))
                         {
-                            forwardQueue_->insert(aitstar::Edge(edge.getChild(), edge.getParent(),
-                                                                computeSortKey(edge.getChild(), edge.getParent())));
+                            edge.getChild()->addToForwardQueueLookup(forwardQueue_->insert(aitstar::Edge(
+                                edge.getParent(), edge.getChild(), computeSortKey(edge.getParent(), edge.getChild()))));
                         }
                     }
                     edgesToBeInserted_.clear();
@@ -402,7 +406,10 @@ namespace ompl
                     }
                     if (haveAllVerticesBeenProcessed(outgoingStartEdges))
                     {
-                        forwardQueue_->insert(outgoingStartEdges);
+                        for (const auto &edge : outgoingStartEdges)
+                        {
+                            edge.getChild()->addToForwardQueueLookup(forwardQueue_->insert(edge));
+                        }
                     }
                     else
                     {
@@ -425,11 +432,30 @@ namespace ompl
                     // Add new samples to the graph.
                     auto newVertices = graph_.addSamples(batchSize_);
 
-                    // This constitutes new searches.
+                    // Clear the backward queue.
+                    std::vector<std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<aitstar::Vertex>>>
+                        backwardQueue;
+                    backwardQueue_->getContent(backwardQueue);
+                    for (const auto &element : backwardQueue)
+                    {
+                        element.second->resetBackwardQueuePointer();
+                    }
                     backwardQueue_->clear();
+
+                    // This constitutes a new backward search.
                     ++(*backwardSearchId_);
+
+                    // Clear the forward queue.
+                    std::vector<aitstar::Edge> forwardQueue;
+                    forwardQueue_->getContent(forwardQueue);
+                    for (const auto &element : forwardQueue)
+                    {
+                        element.getChild()->resetForwardQueueLookup();
+                    }
                     forwardQueue_->clear();
                     ++(*forwardSearchId_);
+
+                    // Clear the cache of edges to be inserted.
                     edgesToBeInserted_.clear();
 
                     // Add the goals to the backward queue.
@@ -456,13 +482,9 @@ namespace ompl
             auto &edge = forwardQueue_->top()->data;
             auto parent = edge.getParent();
             auto child = edge.getChild();
-            if (!(child->hasBackwardParent() || graph_.isGoal(child)) ||
-                !(parent->hasBackwardParent() || graph_.isGoal(parent)))
-            {
-                std::cout << "Edge: (" << parent->getId() << " -> " << child->getId() << ")" << std::endl;
-            }
             assert(child->hasBackwardParent() || graph_.isGoal(child));
             assert(parent->hasBackwardParent() || graph_.isGoal(parent));
+            child->removeFromForwardQueueLookup(forwardQueue_->top());
             forwardQueue_->pop();
 
             // If this is edge can not possibly improve our solution, the search is done.
@@ -475,6 +497,11 @@ namespace ompl
                 if (objective_->isFinite(pathThroughEdgeCost) ||
                     !objective_->isFinite(computeBestCostToComeFromGoalOfAnyStart()))
                 {
+                    std::vector<aitstar::Edge> edges;
+                    forwardQueue_->getContent(edges);
+                    for (const auto& edge : edges) {
+                        edge.getChild()->resetForwardQueueLookup();
+                    }
                     forwardQueue_->clear();
                 }
                 else
@@ -490,7 +517,10 @@ namespace ompl
                     auto edges = getOutgoingEdges(child);
                     if (haveAllVerticesBeenProcessed(edges))
                     {
-                        forwardQueue_->insert(edges);
+                        for (const auto &edge : edges)
+                        {
+                            edge.getChild()->addToForwardQueueLookup(forwardQueue_->insert(edge));
+                        }
                     }
                     else
                     {
@@ -539,7 +569,10 @@ namespace ompl
                         auto edges = getOutgoingEdges(child);
                         if (haveAllVerticesBeenProcessed(edges))
                         {
-                            forwardQueue_->insert(edges);
+                            for (const auto &edge : edges)
+                            {
+                                edge.getChild()->addToForwardQueueLookup(forwardQueue_->insert(edge));
+                            }
                         }
                         else
                         {
@@ -682,8 +715,8 @@ namespace ompl
                     {
                         auto &edge = edgesToBeInserted_.at(i);
                         edge.setSortKey(computeSortKey(edge.getParent(), edge.getChild()));
+                        edge.getChild()->addToForwardQueueLookup(forwardQueue_->insert(edge));
                     }
-                    forwardQueue_->insert(edgesToBeInserted_);
                     edgesToBeInserted_.clear();
                 }
             }
@@ -695,7 +728,7 @@ namespace ompl
             {
                 // Get the best parent for this vertex.
                 auto bestParent = vertex->getBackwardParent();
-                auto bestCost = vertex->getCostToComeFromGoal();
+                auto bestCost = objective_->infiniteCost();
 
                 // Check all neighbors as defined by the graph.
                 for (const auto &neighbor : graph_.getNeighbors(vertex))
@@ -774,6 +807,36 @@ namespace ompl
                         vertex->getBackwardParent()->removeFromBackwardChildren(vertex->getId());
                         vertex->resetBackwardParent();
                     }
+
+                    vertex->setCostToComeFromGoal(objective_->infiniteCost());
+                    auto affectedVertices = vertex->invalidateBackwardBranch();
+
+                    // Remove the corresponding edges from the forward queue.
+                    for (const auto &vertex : affectedVertices)
+                    {
+                        auto forwardQueueLookup = vertex.lock()->getForwardQueueLookup();
+                        for (const auto &element : forwardQueueLookup)
+                        {
+                            forwardQueue_->remove(element);
+                        }
+                        vertex.lock()->resetForwardQueueLookup();
+                    }
+
+                    auto vertexForwardQueueLookup = vertex->getForwardQueueLookup();
+                    for (const auto &element : vertexForwardQueueLookup)
+                    {
+                        auto &edge = element->data;
+                        auto it = std::find_if(affectedVertices.begin(), affectedVertices.end(),
+                                               [edge](const auto &affectedVertex) {
+                                                   return affectedVertex.lock()->getId() == edge.getParent()->getId();
+                                               });
+                        if (it != affectedVertices.end())
+                        {
+                            vertex->removeFromForwardQueueLookup(element);
+                            forwardQueue_->remove(element);
+                        }
+                    }
+
                     return;
                 }
 
@@ -1013,6 +1076,7 @@ namespace ompl
             {
                 invalidateCostToComeFromGoalOfBackwardBranch(child);
                 child->setCostToComeFromGoal(objective_->infiniteCost());
+                child->setExpandedCostToComeFromGoal(objective_->infiniteCost());
                 auto backwardQueuePointer = child->getBackwardQueuePointer();
                 if (backwardQueuePointer)
                 {
