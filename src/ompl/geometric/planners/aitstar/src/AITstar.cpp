@@ -617,6 +617,7 @@ namespace ompl
                     {
                         // The parent was connected to the child through an invalid edge.
                         parent->setCostToComeFromGoal(objective_->infiniteCost());
+                        parent->setExpandedCostToComeFromGoal(objective_->infiniteCost());
                         parent->resetBackwardParent();
                         child->removeFromBackwardChildren(parent->getId());
 
@@ -759,7 +760,7 @@ namespace ompl
                         !vertex->isBlacklistedAsChild(neighbor))
                     {
                         auto edgeCost = objective_->motionCostHeuristic(neighbor->getState(), vertex->getState());
-                        auto parentCost = objective_->combineCosts(neighbor->getCostToComeFromGoal(), edgeCost);
+                        auto parentCost = objective_->combineCosts(neighbor->getExpandedCostToComeFromGoal(), edgeCost);
                         if (objective_->isCostBetterThan(parentCost, bestCost))
                         {
                             bestParent = neighbor;
@@ -768,41 +769,15 @@ namespace ompl
                     }
                 }
 
-                // Check all children this vertex hold in the backward search.
-                for (const auto &backwardChild : vertex->getBackwardChildren())
-                {
-                    auto edgeCost = objective_->motionCostHeuristic(backwardChild->getState(), vertex->getState());
-                    auto parentCost =
-                        objective_->combineCosts(backwardChild->getExpandedCostToComeFromGoal(), edgeCost);
-                    if (objective_->isCostBetterThan(parentCost, bestCost))
-                    {
-                        bestParent = backwardChild;
-                        bestCost = parentCost;
-                    }
-                }
-
                 // Check all children this vertex holds in the forward search.
                 for (const auto &forwardChild : vertex->getForwardChildren())
                 {
                     auto edgeCost = objective_->motionCostHeuristic(forwardChild->getState(), vertex->getState());
                     auto parentCost = objective_->combineCosts(forwardChild->getExpandedCostToComeFromGoal(), edgeCost);
+
                     if (objective_->isCostBetterThan(parentCost, bestCost))
                     {
                         bestParent = forwardChild;
-                        bestCost = parentCost;
-                    }
-                }
-
-                // Check the parent of this vertex in the backward search.
-                if (vertex->hasBackwardParent())
-                {
-                    auto backwardParent = vertex->getBackwardParent();
-                    auto edgeCost = objective_->motionCostHeuristic(backwardParent->getState(), vertex->getState());
-                    auto parentCost =
-                        objective_->combineCosts(backwardParent->getExpandedCostToComeFromGoal(), edgeCost);
-                    if (objective_->isCostBetterThan(parentCost, bestCost))
-                    {
-                        bestParent = backwardParent;
                         bestCost = parentCost;
                     }
                 }
@@ -814,9 +789,25 @@ namespace ompl
                     auto edgeCost = objective_->motionCostHeuristic(forwardParent->getState(), vertex->getState());
                     auto parentCost =
                         objective_->combineCosts(forwardParent->getExpandedCostToComeFromGoal(), edgeCost);
+
                     if (objective_->isCostBetterThan(parentCost, bestCost))
                     {
                         bestParent = forwardParent;
+                        bestCost = parentCost;
+                    }
+                }
+
+                // Check the parent of this vertex in the backward search.
+                if (vertex->hasBackwardParent())
+                {
+                    auto backwardParent = vertex->getBackwardParent();
+                    auto edgeCost = objective_->motionCostHeuristic(backwardParent->getState(), vertex->getState());
+                    auto parentCost =
+                        objective_->combineCosts(backwardParent->getExpandedCostToComeFromGoal(), edgeCost);
+
+                    if (objective_->isCostBetterThan(parentCost, bestCost))
+                    {
+                        bestParent = backwardParent;
                         bestCost = parentCost;
                     }
                 }
