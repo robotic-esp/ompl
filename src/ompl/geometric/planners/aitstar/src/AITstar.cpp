@@ -815,16 +815,18 @@ namespace ompl
                 // If this vertex is now disconnected, take special care.
                 if (!objective_->isFinite(bestCost))
                 {
+                    // Reset the backward parent if the vertex has one.
                     if (vertex->hasBackwardParent())
                     {
                         vertex->getBackwardParent()->removeFromBackwardChildren(vertex->getId());
                         vertex->resetBackwardParent();
                     }
 
+                    // Invalidate the branch in the reverse search tree that is rooted at this vertex.
                     vertex->setCostToComeFromGoal(objective_->infiniteCost());
                     auto affectedVertices = vertex->invalidateBackwardBranch();
 
-                    // Remove the corresponding edges from the forward queue.
+                    // Remove the affected edges from the forward queue, placing them in the edge cache.
                     for (const auto &affectedVertex : affectedVertices)
                     {
                         auto forwardQueueLookup = affectedVertex.lock()->getForwardQueueLookup();
@@ -836,6 +838,7 @@ namespace ompl
                         affectedVertex.lock()->resetForwardQueueLookup();
                     }
 
+                    // Remove appropriate edges from the forward queue that target the root of the branch.
                     auto vertexForwardQueueLookup = vertex->getForwardQueueLookup();
                     for (const auto &element : vertexForwardQueueLookup)
                     {
@@ -849,6 +852,21 @@ namespace ompl
                             edgesToBeInserted_.emplace_back(edge);
                             vertex->removeFromForwardQueueLookup(element);
                             forwardQueue_->remove(element);
+                        }
+                    }
+
+                    // Insert the neighbors of the root that are still in the tree in open as they might now be the best
+                    // parents of the vertices in the invalidated branch.
+                    for (const auto &neighbor : graph_.getNeighbors(vertex))
+                    {
+                        if (neighbor->hasBackwardParent() && !neighbor->getBackwardQueuePointer())
+                        {
+                            auto backwardQueuePtr =
+                                backwardQueue_->insert(std::make_pair(computeSortKey(neighbor), neighbor));
+                            neighbor->setBackwardQueuePointer(backwardQueuePtr);
+
+                            // We consider this vertex as unexpanded, otherwise we'll have consistent vertices in the queue.
+                            neighbor->setExpandedCostToComeFromGoal(objective_->infiniteCost());
                         }
                     }
 
