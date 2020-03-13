@@ -825,15 +825,15 @@ namespace ompl
                     auto affectedVertices = vertex->invalidateBackwardBranch();
 
                     // Remove the corresponding edges from the forward queue.
-                    for (const auto &vertex : affectedVertices)
+                    for (const auto &affectedVertex : affectedVertices)
                     {
-                        auto forwardQueueLookup = vertex.lock()->getForwardQueueLookup();
+                        auto forwardQueueLookup = affectedVertex.lock()->getForwardQueueLookup();
                         for (const auto &element : forwardQueueLookup)
                         {
                             edgesToBeInserted_.emplace_back(element->data);
                             forwardQueue_->remove(element);
                         }
-                        vertex.lock()->resetForwardQueueLookup();
+                        affectedVertex.lock()->resetForwardQueueLookup();
                     }
 
                     auto vertexForwardQueueLookup = vertex->getForwardQueueLookup();
