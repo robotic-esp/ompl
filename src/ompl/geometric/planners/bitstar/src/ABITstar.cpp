@@ -54,6 +54,22 @@ namespace ompl
 
             // Set the default truncation factor parameter to something reasonable.
             setTruncationFactorParameter(5.0);
+
+            // Make sure the default name reflects the default k-nearest setting.
+            if (graphPtr_->getUseKNearest() && Planner::getName() == "ABITstar")
+            {
+                // It's the current default r-disc ABIT* name, but we're using a k-nearest RGG.
+                OMPL_WARN("ABIT*: A k-nearest version of ABIT* can not be named 'ABITstar', as this name is reserved for "
+                          "the r-disc version. Changing the name to 'kABITstar'.");
+                Planner::setName("kABITstar");
+            }
+            else if (!graphPtr_->getUseKNearest() && Planner::getName() == "kABITstar")
+            {
+                // It's the current default k-nearest ABIT* name, but we're using an r-disc RGG.
+                OMPL_WARN("ABIT*: An r-disc version of ABIT* can not be named 'kABITstar', as this name is reserved for "
+                          "the k-nearest version. Changing the name to 'ABITstar'.");
+                Planner::setName("ABITstar");
+            }
         }
 
         void ABITstar::setInitialInflationFactor(double factor)
