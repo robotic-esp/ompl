@@ -44,16 +44,24 @@ namespace ompl
           : ompl::geometric::BITstar(si, name)
         {
             // Enable cascading rewirings.
-            enableCascadingRewirings();
+            enableCascadingRewirings(true);
 
             // Set the default initial inflation factor to very high.
             setInitialInflationFactor(1000000.0);
 
             // Set the default inflation factor parameter to something reasonable.
-            setInflationFactorParameter(10.0);
+            setInflationScalingParameter(10.0);
 
             // Set the default truncation factor parameter to something reasonable.
-            setTruncationFactorParameter(5.0);
+            setTruncationScalingParameter(5.0);
+
+            // Declare the planner parameters.
+            Planner::declareParam<double>("initial_inflation_factor", this, &ABITstar::setInitialInflationFactor,
+                                          &ABITstar::getInitialInflationFactor, "1.0:0.01:1000000.0");
+            Planner::declareParam<double>("inflation_scaling_parameter", this, &ABITstar::setInflationScalingParameter,
+                                          &ABITstar::getInflationScalingParameter, "1.0:0.01:1000000.0");
+            Planner::declareParam<double>("truncation_scaling_parameter", this, &ABITstar::setTruncationScalingParameter,
+                                          &ABITstar::getTruncationScalingParameter, "1.0:0.01:1000000.0");
         }
 
         void ABITstar::setInitialInflationFactor(double factor)
@@ -61,19 +69,29 @@ namespace ompl
             BITstar::setInitialInflationFactor(factor);
         }
 
-        void ABITstar::setInflationFactorParameter(double parameter)
+        void ABITstar::setInflationScalingParameter(double factor)
         {
-            BITstar::setInflationFactorParameter(parameter);
+            BITstar::setInflationScalingParameter(factor);
         }
 
-        void ABITstar::setTruncationFactorParameter(double parameter)
+        void ABITstar::setTruncationScalingParameter(double factor)
         {
-            BITstar::setTruncationFactorParameter(parameter);
+            BITstar::setTruncationScalingParameter(factor);
         }
 
         double ABITstar::getInitialInflationFactor() const
         {
             return BITstar::getInitialInflationFactor();
+        }
+
+        double ABITstar::getInflationScalingParameter() const
+        {
+            return BITstar::getInflationScalingParameter();
+        }
+
+        double ABITstar::getTruncationScalingParameter() const
+        {
+            return BITstar::getTruncationScalingParameter();
         }
 
         double ABITstar::getCurrentInflationFactor() const
