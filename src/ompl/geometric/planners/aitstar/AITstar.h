@@ -41,6 +41,7 @@
 
 #include "ompl/base/Planner.h"
 #include "ompl/datastructures/BinaryHeap.h"
+#include "ompl/geometric/PathGeometric.h"
 #include "ompl/geometric/planners/aitstar/datastructures/Edge.h"
 #include "ompl/geometric/planners/aitstar/datastructures/ImplicitGraph.h"
 #include "ompl/geometric/planners/aitstar/datastructures/Vertex.h"
