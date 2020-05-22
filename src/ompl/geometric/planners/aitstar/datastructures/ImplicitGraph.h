@@ -68,11 +68,20 @@ namespace ompl
                            const ompl::base::ProblemDefinitionPtr &problemDefinition,
                            const std::shared_ptr<ompl::base::Cost> &solutionCost,
                            const std::shared_ptr<std::size_t> &forwardSearchId,
-                           const std::shared_ptr<std::size_t> &backwardSearchId,
+                           const std::shared_ptr<std::size_t> &reverseSearchId,
                            ompl::base::PlannerInputStates *inputStates);
+
+                /** \brief Resets the graph to its construction state, without resetting options. */
+                void clear();
 
                 /** \brief Set the reqire factor of the RGG. */
                 void setRewireFactor(double rewireFactor);
+
+                /** \brief Get the reqire factor of the RGG. */
+                double getRewireFactor() const;
+
+                /** \brief Sets whether to track approximate solutions or not. */
+                void setTrackApproximateSolution(bool track);
 
                 /** \brief Adds a batch of samples. */
                 std::vector<std::shared_ptr<Vertex>> addSamples(std::size_t numNewSamples);
@@ -121,6 +130,12 @@ namespace ompl
                 /** \brief Prune all samples that can not contribute to a solution better than the current one. */
                 void prune();
 
+                /** \brief Get the number of state collision checks. */
+                std::size_t getNumberOfStateCollisionChecks() const;
+
+                /** \brief Get the number of nearest neighbor calls. */
+                std::size_t getNumberOfNearestNeighborCalls() const;
+
                 /** \brief Set the seed used by the RNG and the StateSampler. The state sampler must already be
                  * allocated, as a new state sampler will not take this seed. */
                 void setLocalSeed(std::uint_fast32_t localSeed)
@@ -156,11 +171,17 @@ namespace ompl
                 /** \brief The id of the forward search. */
                 std::shared_ptr<std::size_t> forwardSearchId_;
 
-                /** \brief The id of the backward search. */
-                std::shared_ptr<std::size_t> backwardSearchId_;
+                /** \brief The id of the reverse search. */
+                std::shared_ptr<std::size_t> reverseSearchId_;
 
                 /** \brief The rewire factor of the RGG. */
                 double rewireFactor_{1.0};
+
+                /** \brief Whether to track approximate solutions. */
+                bool trackApproximateSolution_{false};
+
+                /** \brief The vertex to the goal. */
+                std::shared_ptr<Vertex> bestApproximateGoal_;
 
                 /** \brief The radius that defines the neighborhood of a vertex. */
                 double radius_{std::numeric_limits<double>::infinity()};
@@ -189,6 +210,12 @@ namespace ompl
                  * add start states after we've pruned some goal states, we might want to add these pruned goal states
                  * again. */
                 std::vector<std::shared_ptr<Vertex>> prunedGoalVertices_;
+
+                /** \brief The number of state collision checks. */
+                mutable std::size_t numStateCollisionChecks_{0u};
+
+                /** \brief The number of state collision checks. */
+                mutable std::size_t numNearestNeighborsCalls_{0u};
             };
 
         }  // namespace aitstar

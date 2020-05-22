@@ -47,29 +47,39 @@ namespace ompl
         {
             ImplicitGraph::ImplicitGraph() : batchId_(std::make_shared<std::size_t>(1u))
             {
-                // Set the distance function to the space information distance function.
-                vertices_.setDistanceFunction(
-                    [this](const std::shared_ptr<Vertex> &a, const std::shared_ptr<Vertex> &b) {
-                        return spaceInformation_->distance(a->getState(), b->getState());
-                    });
             }
 
             void ImplicitGraph::setup(const ompl::base::SpaceInformationPtr &spaceInformation,
                                       const ompl::base::ProblemDefinitionPtr &problemDefinition,
                                       const std::shared_ptr<ompl::base::Cost> &solutionCost,
                                       const std::shared_ptr<std::size_t> &forwardSearchId,
-                                      const std::shared_ptr<std::size_t> &backwardSearchId,
-                                      ompl::base::PlannerInputStates* inputStates)
+                                      const std::shared_ptr<std::size_t> &reverseSearchId,
+                                      ompl::base::PlannerInputStates *inputStates)
             {
+                vertices_.setDistanceFunction(
+                    [this](const std::shared_ptr<Vertex> &a, const std::shared_ptr<Vertex> &b) {
+                        return spaceInformation_->distance(a->getState(), b->getState());
+                    });
                 spaceInformation_ = spaceInformation;
                 problemDefinition_ = problemDefinition;
                 objective_ = problemDefinition->getOptimizationObjective();
                 solutionCost_ = solutionCost;
                 forwardSearchId_ = forwardSearchId;
-                backwardSearchId_ = backwardSearchId;
-                sampler_ =
-                    objective_->allocInformedStateSampler(problemDefinition, std::numeric_limits<unsigned int>::max());
+                reverseSearchId_ = reverseSearchId;
                 updateStartAndGoalStates(ompl::base::plannerAlwaysTerminatingCondition(), inputStates);
+            }
+
+            void ImplicitGraph::clear()
+            {
+                *batchId_ = 1u;
+                *forwardSearchId_ = 1u;
+                *reverseSearchId_ = 1u;
+                radius_ = std::numeric_limits<double>::infinity();
+                vertices_.clear();
+                startVertices_.clear();
+                goalVertices_.clear();
+                prunedStartVertices_.clear();
+                prunedGoalVertices_.clear();
             }
 
             void ImplicitGraph::setRewireFactor(double rewireFactor)
@@ -77,11 +87,16 @@ namespace ompl
                 rewireFactor_ = rewireFactor;
             }
 
+            double ImplicitGraph::getRewireFactor() const
+            {
+                return rewireFactor_;
+            }
+
             void ImplicitGraph::registerStartState(const ompl::base::State *const startState)
             {
                 // Create a vertex corresponding to this state.
                 auto startVertex = std::make_shared<Vertex>(spaceInformation_, problemDefinition_, batchId_,
-                                                            forwardSearchId_, backwardSearchId_);
+                                                            forwardSearchId_, reverseSearchId_);
 
                 // Copy the state into the vertex's state.
                 spaceInformation_->copyState(startVertex->getState(), startState);
@@ -100,7 +115,7 @@ namespace ompl
             {
                 // Create a vertex corresponding to this state.
                 auto goalVertex = std::make_shared<Vertex>(spaceInformation_, problemDefinition_, batchId_,
-                                                           forwardSearchId_, backwardSearchId_);
+                                                           forwardSearchId_, reverseSearchId_);
 
                 // Copy the state into the vertex's state.
                 spaceInformation_->copyState(goalVertex->getState(), goalState);
@@ -304,12 +319,15 @@ namespace ompl
                 {
                     // Create a new vertex.
                     newVertices.emplace_back(std::make_shared<Vertex>(spaceInformation_, problemDefinition_, batchId_,
-                                                                      forwardSearchId_, backwardSearchId_));
+                                                                      forwardSearchId_, reverseSearchId_));
 
                     do
                     {
                         // Sample the associated state uniformly within the informed set.
                         sampler_->sampleUniform(newVertices.back()->getState(), *solutionCost_.lock());
+
+                        // Count how many states we've checked.
+                        ++numStateCollisionChecks_;
                     } while (!spaceInformation_->getStateValidityChecker()->isValid(newVertices.back()->getState()));
                 }
 
@@ -344,6 +362,7 @@ namespace ompl
                 }
                 else
                 {
+                    ++numNearestNeighborsCalls_;
                     std::vector<std::shared_ptr<Vertex>> neighbors{};
                     vertices_.nearestR(vertex, radius_, neighbors);
                     vertex->cacheNeighbors(neighbors);
@@ -431,12 +450,12 @@ namespace ompl
                 for (const auto &vertex : verticesToBePruned)
                 {
                     // Remove it from both search trees.
-                    if (vertex->hasBackwardParent())
+                    if (vertex->hasReverseParent())
                     {
-                        vertex->getBackwardParent()->removeFromBackwardChildren(vertex->getId());
-                        vertex->resetBackwardParent();
+                        vertex->getReverseParent()->removeFromReverseChildren(vertex->getId());
+                        vertex->resetReverseParent();
                     }
-                    vertex->invalidateBackwardBranch();
+                    vertex->invalidateReverseBranch();
                     if (vertex->hasForwardParent())
                     {
                         vertex->getForwardParent()->removeFromForwardChildren(vertex->getId());
@@ -449,6 +468,16 @@ namespace ompl
                 }
 
                 // Assert that the forward and reverse queue are empty?
+            }
+
+            std::size_t ImplicitGraph::getNumberOfStateCollisionChecks() const
+            {
+                return numStateCollisionChecks_;
+            }
+
+            std::size_t ImplicitGraph::getNumberOfNearestNeighborCalls() const
+            {
+                return numNearestNeighborsCalls_;
             }
 
             double ImplicitGraph::computeConnectionRadius(std::size_t numSamples) const
