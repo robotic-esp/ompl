@@ -62,24 +62,20 @@ namespace ompl
 
             Vertex::Vertex(const ompl::base::SpaceInformationPtr &spaceInformation,
                            const ompl::base::ProblemDefinitionPtr &problemDefinition,
-                           const std::shared_ptr<std::size_t> &batchId,
-                           const std::shared_ptr<std::size_t> &forwardSearchId,
-                           const std::shared_ptr<std::size_t> &reverseSearchId)
+                           const std::shared_ptr<std::size_t> &batchId)
               : spaceInformation_(spaceInformation)
               , problemDefinition_(problemDefinition)
-              , optimizationObjective_(problemDefinition->getOptimizationObjective())
+              , objective_(problemDefinition->getOptimizationObjective())
               , forwardChildren_()
               , forwardParent_()
               , state_(spaceInformation->allocState())  // The memory allocated here is freed in the destructor.
-              , costToComeFromStart_(optimizationObjective_->infiniteCost())
-              , edgeCostFromForwardParent_(optimizationObjective_->infiniteCost())
-              , costToComeFromGoal_(optimizationObjective_->infiniteCost())
-              , expandedCostToComeFromGoal_(optimizationObjective_->infiniteCost())
-              , costToGoToGoal_(optimizationObjective_->infiniteCost())
+              , costToComeFromStart_(objective_->infiniteCost())
+              , edgeCostFromForwardParent_(objective_->infiniteCost())
+              , costToComeFromGoal_(objective_->infiniteCost())
+              , expandedCostToComeFromGoal_(objective_->infiniteCost())
+              , costToGoToGoal_(objective_->infiniteCost())
               , vertexId_(generateId())
               , batchId_(batchId)
-              , forwardSearchId_(forwardSearchId)
-              , reverseSearchId_(reverseSearchId)
             {
             }
 
@@ -118,60 +114,22 @@ namespace ompl
             {
                 if (reverseSearchBatchId_ != *batchId_.lock())
                 {
-                    costToComeFromGoal_ = optimizationObjective_->infiniteCost();
+                    costToComeFromGoal_ = objective_->infiniteCost();
                 }
                 return costToComeFromGoal_;
             }
 
             ompl::base::Cost Vertex::getExpandedCostToComeFromGoal() const
             {
-                if (expandedReverseSearchId_ != *reverseSearchId_.lock())
+                if (expandedReverseSearchId_ != *batchId_.lock())
                 {
-                    expandedCostToComeFromGoal_ = optimizationObjective_->infiniteCost();
+                    expandedCostToComeFromGoal_ = objective_->infiniteCost();
                 }
                 return expandedCostToComeFromGoal_;
             }
 
             ompl::base::Cost Vertex::getCostToGoToGoal() const
             {
-                // // If the cost to go hasn't been set, compute it.
-                // if (!std::isfinite(costToGoToGoal_.value()))
-                // {
-                //     auto goalPtr = problemDefinition_->getGoal();
-                //     if (goalPtr->hasType(ompl::base::GOAL_STATE))
-                //     {
-                //         costToGoToGoal_ = optimizationObjective_->motionCostHeuristic(
-                //             state_, goalPtr->as<ompl::base::GoalState>()->getState());
-                //     }
-                //     else if (goalPtr->hasType(ompl::base::GOAL_STATES))
-                //     {
-                //         for (std::size_t i = 0u; i < goalPtr->as<ompl::base::GoalStates>()->getStateCount(); ++i)
-                //         {
-                //             ompl::base::Cost costToGoToThis = optimizationObjective_->motionCostHeuristic(
-                //                 state_, goalPtr->as<ompl::base::GoalStates>()->getState(i));
-                //             if (optimizationObjective_->isCostBetterThan(costToGoToThis, costToGoToGoal_))
-                //             {
-                //                 costToGoToGoal_ = costToGoToThis;
-                //             }
-                //         }
-                //     }
-                //     else
-                //     {
-                //         auto msg =
-                //             "TBDstar's OMPL implementation is limited to the goal types GOAL_STATE and
-                //             GOAL_STATES."s;
-                //         throw ompl::Exception(msg);
-                //     }
-                // }
-
-                // if (!std::isfinite(costToComeFromGoal_.value()))
-                // {
-                //     return costToGoToGoal_;
-                // }
-                // else
-                // {
-                //     return costToComeFromGoal_;
-                // }
                 return getCostToComeFromGoal();
             }
 
@@ -234,7 +192,7 @@ namespace ompl
                 // Update the cost of all forward children.
                 for (const auto &child : getForwardChildren())
                 {
-                    child->setCostToComeFromStart(optimizationObjective_->combineCosts(
+                    child->setCostToComeFromStart(objective_->combineCosts(
                         costToComeFromStart_, child->getEdgeCostFromForwardParent()));
                     child->updateCostOfForwardBranch();
                 }
@@ -247,8 +205,8 @@ namespace ompl
                 // Remove all children.
                 for (const auto &child : reverseChildren_)
                 {
-                    child.lock()->setCostToComeFromGoal(optimizationObjective_->infiniteCost());
-                    child.lock()->setExpandedCostToComeFromGoal(optimizationObjective_->infiniteCost());
+                    child.lock()->setCostToComeFromGoal(objective_->infiniteCost());
+                    child.lock()->setExpandedCostToComeFromGoal(objective_->infiniteCost());
                     child.lock()->resetReverseParent();
                     auto childsAccumulatedChildren = child.lock()->invalidateReverseBranch();
                     accumulatedChildren.insert(accumulatedChildren.end(), childsAccumulatedChildren.begin(),
@@ -256,6 +214,7 @@ namespace ompl
                 }
                 reverseChildren_.clear();
 
+                unregisterExpansionDuringReverseSearch();
                 return accumulatedChildren;
             }
 
@@ -266,7 +225,7 @@ namespace ompl
                 // Remove all children.
                 for (const auto &child : forwardChildren_)
                 {
-                    child.lock()->setCostToComeFromGoal(optimizationObjective_->infiniteCost());
+                    child.lock()->setCostToComeFromGoal(objective_->infiniteCost());
                     child.lock()->resetForwardParent();
                     auto childsAccumulatedChildren = child.lock()->invalidateForwardBranch();
                     accumulatedChildren.insert(accumulatedChildren.end(), childsAccumulatedChildren.begin(),
@@ -292,7 +251,7 @@ namespace ompl
                 forwardParent_ = std::weak_ptr<Vertex>(vertex);
 
                 // Update the cost to come.
-                costToComeFromStart_ = optimizationObjective_->combineCosts(vertex->getCostToComeFromStart(), edgeCost);
+                costToComeFromStart_ = objective_->combineCosts(vertex->getCostToComeFromStart(), edgeCost);
             }
 
             void Vertex::resetForwardParent()
@@ -445,37 +404,42 @@ namespace ompl
 
             void Vertex::registerPoppedOutgoingEdgeDuringForwardSearch()
             {
-                childAddedForwardSearchId_ = *forwardSearchId_.lock();
+                poppedOutgoingEdgeId_ = *batchId_.lock();
             }
 
             void Vertex::registerExpansionDuringReverseSearch()
             {
                 assert(!reverseSearchId_.expired());
                 expandedCostToComeFromGoal_ = costToComeFromGoal_;
-                expandedReverseSearchId_ = *reverseSearchId_.lock();
+                expandedReverseSearchId_ = *batchId_.lock();
+            }
+
+            void Vertex::unregisterExpansionDuringReverseSearch()
+            {
+                expandedReverseSearchId_ = 0u;
             }
 
             void Vertex::registerInsertionIntoQueueDuringReverseSearch()
             {
                 assert(!reverseSearchId_.expired());
-                insertedIntoQueueReverseSearchId_ = *reverseSearchId_.lock();
+                insertedIntoQueueId_ = *batchId_.lock();
             }
 
             bool Vertex::hasHadOutgoingEdgePoppedDuringCurrentForwardSearch() const
             {
                 assert(!forwardSearchId_.expired());
-                return childAddedForwardSearchId_ == *forwardSearchId_.lock();
+                return poppedOutgoingEdgeId_ == *batchId_.lock();
             }
 
             bool Vertex::hasBeenExpandedDuringCurrentReverseSearch() const
             {
                 assert(!reverseSearchId_.expired());
-                return expandedReverseSearchId_ == *reverseSearchId_.lock();
+                return expandedReverseSearchId_ == *batchId_.lock();
             }
 
             bool Vertex::hasBeenInsertedIntoQueueDuringCurrentReverseSearch() const
             {
-                return insertedIntoQueueReverseSearchId_ == *reverseSearchId_.lock();
+                return insertedIntoQueueId_ == *batchId_.lock();
             }
 
             void Vertex::setReverseQueuePointer(
@@ -485,7 +449,7 @@ namespace ompl
                                        const std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<Vertex>> &)>>::
                     Element *pointer)
             {
-                reverseQueuePointerReverseSearchId_ = *reverseSearchId_.lock();
+                reverseQueuePointerId_ = *batchId_.lock();
                 reverseQueuePointer_ = pointer;
             }
 
@@ -496,7 +460,7 @@ namespace ompl
                 Element *
                 Vertex::getReverseQueuePointer() const
             {
-                if (*reverseSearchId_.lock() != reverseQueuePointerReverseSearchId_)
+                if (*batchId_.lock() != reverseQueuePointerId_)
                 {
                     reverseQueuePointer_ = nullptr;
                 }

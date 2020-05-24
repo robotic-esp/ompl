@@ -34,7 +34,8 @@
 
 // Authors: Marlin Strub
 
-#pragma once
+#ifndef OMPL_GEOMETRIC_PLANNERS_AITSTAR_IMPLICITGRAPH_
+#define OMPL_GEOMETRIC_PLANNERS_AITSTAR_IMPLICITGRAPH_
 
 #include <memory>
 
@@ -60,21 +61,19 @@ namespace ompl
                 /** \brief Constructs an implicit graph. */
                 ImplicitGraph();
 
-                /** \brief Deconstructs an implicit graph. */
+                /** \brief Destructs an implicit graph. */
                 virtual ~ImplicitGraph() = default;
 
                 /** \brief The setup method for the graph. Needed to have it on the stack. */
                 void setup(const ompl::base::SpaceInformationPtr &spaceInformation,
                            const ompl::base::ProblemDefinitionPtr &problemDefinition,
                            const std::shared_ptr<ompl::base::Cost> &solutionCost,
-                           const std::shared_ptr<std::size_t> &forwardSearchId,
-                           const std::shared_ptr<std::size_t> &reverseSearchId,
                            ompl::base::PlannerInputStates *inputStates);
 
                 /** \brief Resets the graph to its construction state, without resetting options. */
                 void clear();
 
-                /** \brief Set the reqire factor of the RGG. */
+                /** \brief Set the rewire factor of the RGG. */
                 void setRewireFactor(double rewireFactor);
 
                 /** \brief Get the reqire factor of the RGG. */
@@ -83,7 +82,7 @@ namespace ompl
                 /** \brief Sets whether to track approximate solutions or not. */
                 void setTrackApproximateSolution(bool track);
 
-                /** \brief Adds a batch of samples. */
+                /** \brief Adds a batch of samples and returns the samples it has added. */
                 std::vector<std::shared_ptr<Vertex>> addSamples(std::size_t numNewSamples);
 
                 /** \brief Gets the number of samples in the graph. */
@@ -168,12 +167,6 @@ namespace ompl
                 /** \brief The id of the batch. */
                 std::shared_ptr<std::size_t> batchId_;
 
-                /** \brief The id of the forward search. */
-                std::shared_ptr<std::size_t> forwardSearchId_;
-
-                /** \brief The id of the reverse search. */
-                std::shared_ptr<std::size_t> reverseSearchId_;
-
                 /** \brief The rewire factor of the RGG. */
                 double rewireFactor_{1.0};
 
@@ -223,3 +216,5 @@ namespace ompl
     }  // namespace geometric
 
 }  // namespace ompl
+
+#endif  // OMPL_GEOMETRIC_PLANNERS_AITSTAR_IMPLICITGRAPH_

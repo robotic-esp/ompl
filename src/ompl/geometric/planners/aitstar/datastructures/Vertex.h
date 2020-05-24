@@ -34,7 +34,8 @@
 
 // Authors: Marlin Strub
 
-#pragma once
+#ifndef OMPL_GEOMETRIC_PLANNERS_AITSTAR_VERTEX_
+#define OMPL_GEOMETRIC_PLANNERS_AITSTAR_VERTEX_
 
 #include <memory>
 #include <vector>
@@ -60,8 +61,7 @@ namespace ompl
                 /** \brief Constructs a vertex by sampling a state. */
                 Vertex(const ompl::base::SpaceInformationPtr &spaceInformation,
                        const ompl::base::ProblemDefinitionPtr &problemDefinition,
-                       const std::shared_ptr<std::size_t> &batchId, const std::shared_ptr<std::size_t> &forwardSearchId,
-                       const std::shared_ptr<std::size_t> &reverseSearchId);
+                       const std::shared_ptr<std::size_t> &batchId);
 
                 /** \brief Destructs the vertex. */
                 virtual ~Vertex();
@@ -78,7 +78,7 @@ namespace ompl
                 /** \brief Returns a scoped copy of the underlying state. */
                 ompl::base::ScopedState<> getScopedState() const;
 
-                /** \brief Returns the cost to come to this vertex. */
+                /** \brief Returns the cost to come to this vertex from the start. */
                 ompl::base::Cost getCostToComeFromStart() const;
 
                 /** \brief Returns the cost to come to this vertex from the goal. */
@@ -141,7 +141,7 @@ namespace ompl
                 /** \brief Recursively invalidates the branch of the forward tree rooted in this vertex. */
                 std::vector<std::weak_ptr<aitstar::Vertex>> invalidateForwardBranch();
 
-                /** \brief Adds a vertex this vertex's children. */
+                /** \brief Adds a vertex to this vertex's forward children. */
                 void addToForwardChildren(const std::shared_ptr<Vertex> &vertex);
 
                 /** \brief Removes a vertex from this vertex's forward children. */
@@ -159,10 +159,10 @@ namespace ompl
                 /** \brief Returns this vertex's children in the reverse search tree. */
                 std::vector<std::shared_ptr<Vertex>> getReverseChildren() const;
 
-                /** \brief Blacklists a child. */
+                /** \brief Whitelists a child. */
                 void whitelistAsChild(const std::shared_ptr<Vertex> &vertex) const;
 
-                /** \brief Returns whether a child is blacklisted. */
+                /** \brief Returns whether a child is whitelisted. */
                 bool isWhitelistedAsChild(const std::shared_ptr<Vertex> &vertex) const;
 
                 /** \brief Blacklists a child. */
@@ -186,11 +186,16 @@ namespace ompl
                 /** \brief Registers the expansion of this vertex during the current reverse search. */
                 void registerExpansionDuringReverseSearch();
 
+                /** \brief Unregisters the expansion of this vertex during the current reverse search, needed when a
+                 * reverse branch is invalidated due to a collision detection on an edge. */
+                void unregisterExpansionDuringReverseSearch();
+
                 /** \brief Registers the insertion of this vertex into the open queue during the current reverse
                  * search. */
                 void registerInsertionIntoQueueDuringReverseSearch();
 
-                /** \brief Returns whether the vertex has been expanded during the current forward search. */
+                /** \brief Returns whether the vertex has had an outgoing edge popped during the current forward search.
+                 */
                 bool hasHadOutgoingEdgePoppedDuringCurrentForwardSearch() const;
 
                 /** \brief Returns whether the vertex has been expanded during the current reverse search. */
@@ -267,7 +272,7 @@ namespace ompl
                 const ompl::base::ProblemDefinitionPtr problemDefinition_;
 
                 /** \brief The optimization objective of the planning problem. */
-                const ompl::base::OptimizationObjectivePtr optimizationObjective_;
+                const ompl::base::OptimizationObjectivePtr objective_;
 
                 /** \brief The children of this vertex in the forward search tree. */
                 std::vector<std::weak_ptr<Vertex>> forwardChildren_{};
@@ -278,16 +283,16 @@ namespace ompl
                 /** \brief The cached neighbors of this vertex. */
                 mutable std::vector<std::shared_ptr<Vertex>> neighbors_{};
 
-                /** \brief The list of chind. */
+                /** \brief The list of whitelisted children. */
                 mutable std::vector<std::weak_ptr<Vertex>> whitelistedChildren_{};
 
-                /** \brief The list of chegel. */
+                /** \brief The list of blacklisted children. */
                 mutable std::vector<std::weak_ptr<Vertex>> blacklistedChildren_{};
 
-                /** \brief The parent of this vertex. */
+                /** \brief The parent of this vertex in the forward search tree. */
                 std::weak_ptr<Vertex> forwardParent_;
 
-                /** \brief The parent of this vertex. */
+                /** \brief The parent of this vertex in the reverse search tree. */
                 std::weak_ptr<Vertex> reverseParent_;
 
                 /** \brief The state associated with this vertex. */
@@ -314,46 +319,44 @@ namespace ompl
                 /** \brief The id of the most recent batch. */
                 const std::weak_ptr<const std::size_t> batchId_;
 
-                /** \brief The id of the current forward search. */
-                const std::weak_ptr<const std::size_t> forwardSearchId_;
-
-                /** \brief The id of the current reverse search. */
-                const std::weak_ptr<const std::size_t> reverseSearchId_;
-
                 /** \brief The batch id for which the cached neighbor list is valid. */
                 mutable std::size_t neighborBatchId_{0u};
 
                 /** \brief The batch id for which the reverse search cost to come is valid. */
                 mutable std::size_t reverseSearchBatchId_{0u};
 
-                /** \brief The forward search id a child has last been added to this vertex. */
-                mutable std::size_t childAddedForwardSearchId_{0u};
+                /** \brief The forward search id when the most recent outgoing edge was popped from the forward queue.
+                 */
+                mutable std::size_t poppedOutgoingEdgeId_{0u};
 
                 /** \brief The reverse search id this vertex has last been expanded on. */
                 mutable std::size_t expandedReverseSearchId_{0u};
 
                 /** \brief The reverse search id this vertex has last been inserted into open on. */
-                mutable std::size_t insertedIntoQueueReverseSearchId_{0u};
+                mutable std::size_t insertedIntoQueueId_{0u};
 
                 /** \brief The reverse search id for which the reverse queue pointer is valid. */
-                mutable std::size_t reverseQueuePointerReverseSearchId_{0u};
+                mutable std::size_t reverseQueuePointerId_{0u};
 
-                /** \brief The pointer to the reverse queue element. */
-                mutable typename ompl::BinaryHeap<
+                /** \brief The type of the elements in the reverse queue. */
+                using ReverseQueueElement = typename ompl::BinaryHeap<
                     std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<Vertex>>,
                     std::function<bool(const std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<Vertex>> &,
                                        const std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<Vertex>> &)>>::
-                    Element *reverseQueuePointer_{nullptr};
+                    Element;
+
+                /** \brief The pointer to the reverse queue element. */
+                mutable ReverseQueueElement *reverseQueuePointer_{nullptr};
+
+                /** \brief The type of the elements in the forward queue. */
+                using ForwardQueueElement = typename ompl::BinaryHeap<
+                    aitstar::Edge, std::function<bool(const aitstar::Edge &, const aitstar::Edge &)>>::Element;
 
                 /** \brief The lookup to incoming edges in the forward queue. */
-                mutable std::vector<ompl::BinaryHeap<
-                    aitstar::Edge, std::function<bool(const aitstar::Edge &, const aitstar::Edge &)>>::Element *>
-                    forwardQueueIncomingLookup_;
+                mutable std::vector<ForwardQueueElement *> forwardQueueIncomingLookup_;
 
                 /** \brief The lookup to outgoing edges in the forward queue. */
-                mutable std::vector<ompl::BinaryHeap<
-                    aitstar::Edge, std::function<bool(const aitstar::Edge &, const aitstar::Edge &)>>::Element *>
-                    forwardQueueOutgoingLookup_;
+                mutable std::vector<ForwardQueueElement *> forwardQueueOutgoingLookup_;
             };
 
         }  // namespace aitstar
@@ -361,3 +364,5 @@ namespace ompl
     }  // namespace geometric
 
 }  // namespace ompl
+
+#endif  // OMPL_GEOMETRIC_PLANNERS_AITSTAR_VERTEX_

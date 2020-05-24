@@ -34,7 +34,8 @@
 
 // Authors: Marlin Strub
 
-#pragma once
+#ifndef OMPL_GEOMETRIC_PLANNERS_AITSTAR_AITSTAR_
+#define OMPL_GEOMETRIC_PLANNERS_AITSTAR_AITSTAR_
 
 #include <algorithm>
 #include <memory>
@@ -220,7 +221,7 @@ namespace ompl
             /** \brief Returns the best cost-to-go-heuristic to any goal in the graph. */
             ompl::base::Cost computeCostToGoToGoalHeuristic(const std::shared_ptr<aitstar::Vertex> &vertex) const;
 
-            /** \brief Returns the best cost to any goal in the graph. */
+            /** \brief Returns the best cost to go to any goal in the graph. */
             ompl::base::Cost computeCostToGoToGoal(const std::shared_ptr<aitstar::Vertex> &vertex) const;
 
             /** \brief Returns the best cost to come form the goal of any start. */
@@ -244,16 +245,10 @@ namespace ompl
                 ompl::BinaryHeap<KeyVertexPair, std::function<bool(const KeyVertexPair &, const KeyVertexPair &)>>;
             std::unique_ptr<VertexQueue> reverseQueue_;
 
-            /** \brief The id of the current forward search .*/
-            std::shared_ptr<std::size_t> forwardSearchId_;
-
-            /** \brief The id of the current reverse search .*/
-            std::shared_ptr<std::size_t> reverseSearchId_;
-
             /** \brief The cost of the incumbent solution. */
             std::shared_ptr<ompl::base::Cost> solutionCost_;
 
-            /** \brief The vertex that is closest to the goal (in cost space). */
+            /** \brief The cost to go to the goal of the vertex that is closest to the goal (in cost space). */
             ompl::base::Cost approximateSolutionCost_{};
 
             /** \brief The edges to be inserted in the forward queue. */
@@ -294,3 +289,5 @@ namespace ompl
         };
     }  // namespace geometric
 }  // namespace ompl
+
+#endif  // OMPL_GEOMETRIC_PLANNERS_AITSTAR_AITSTAR
