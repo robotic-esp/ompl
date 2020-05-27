@@ -34,8 +34,8 @@
 
 /* Authors: Jonathan Gammell, Marlin Strub */
 
-#ifndef OMPL_GEOMETRIC_PLANNERS_BITSTAR_BITSTAR_
-#define OMPL_GEOMETRIC_PLANNERS_BITSTAR_BITSTAR_
+#ifndef OMPL_GEOMETRIC_PLANNERS_INFORMEDTREES_BITSTAR_
+#define OMPL_GEOMETRIC_PLANNERS_INFORMEDTREES_BITSTAR_
 
 #include <string>
 #include <utility>
@@ -82,11 +82,10 @@ namespace ompl
 
         @par Associated publication:
 
-        J. D. Gammell, S. S. Srinivasa, T. D. Barfoot, "Batch Informed Trees (BIT*): Sampling-based
-        Optimal Planning via the Heuristically Guided Search of Implicit Random Geometric Graphs,"
-        In Proceedings of the IEEE International Conference on Robotics and Automation (ICRA).
-        Seattle, WA, USA, 26-30 May 2015.
-        DOI: <a href="http://dx.doi.org/10.1109/ICRA.2015.7139620">10.1109/ICRA.2015.7139620</a>.
+        J. D. Gammell, T. D. Barfoot, S. S. Srinivasa,  "Batch Informed Trees (BIT*): Informed asymptotically optimal
+        anytime search." The International Journal of Robotics Research (IJRR), 39(5): 543-567, Apr. 2020.
+        DOI: <a href="https://doi.org/10.1177/0278364919890396">10.1177/0278364919890396</a>.
+        arXiv: <a href="https://arxiv.org/pdf/1707.01888">1707.01888 [cs.RO]</a>.
         <a href="https://www.youtube.com/watch?v=MRzSfLpNBmA">Illustration video</a>.
         */
         /** \brief Batch Informed Trees (BIT*)*/
@@ -565,4 +564,4 @@ namespace ompl
     }       // namespace geometric
 }  // namespace ompl
 
-#endif  // OMPL_GEOMETRIC_PLANNERS_BITSTAR_BITSTAR_
+#endif  // OMPL_GEOMETRIC_PLANNERS_INFORMEDTREES_BITSTAR_

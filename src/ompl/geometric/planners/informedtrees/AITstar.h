@@ -34,8 +34,8 @@
 
 // Authors: Marlin Strub
 
-#ifndef OMPL_GEOMETRIC_PLANNERS_AITSTAR_AITSTAR_
-#define OMPL_GEOMETRIC_PLANNERS_AITSTAR_AITSTAR_
+#ifndef OMPL_GEOMETRIC_PLANNERS_INFORMEDTREES_AITSTAR_
+#define OMPL_GEOMETRIC_PLANNERS_INFORMEDTREES_AITSTAR_
 
 #include <algorithm>
 #include <memory>
@@ -43,9 +43,9 @@
 #include "ompl/base/Planner.h"
 #include "ompl/datastructures/BinaryHeap.h"
 #include "ompl/geometric/PathGeometric.h"
-#include "ompl/geometric/planners/aitstar/datastructures/Edge.h"
-#include "ompl/geometric/planners/aitstar/datastructures/ImplicitGraph.h"
-#include "ompl/geometric/planners/aitstar/datastructures/Vertex.h"
+#include "ompl/geometric/planners/informedtrees/aitstar/Edge.h"
+#include "ompl/geometric/planners/informedtrees/aitstar/ImplicitGraph.h"
+#include "ompl/geometric/planners/informedtrees/aitstar/Vertex.h"
 
 namespace ompl
 {
@@ -240,16 +240,22 @@ namespace ompl
             /** \brief The increasingly dense sampling-based approximation. */
             aitstar::ImplicitGraph graph_;
 
-            /** \brief The forward queue. */
+            /** \brief The type of the edge queue. */
             using EdgeQueue =
                 ompl::BinaryHeap<aitstar::Edge, std::function<bool(const aitstar::Edge &, const aitstar::Edge &)>>;
-            std::unique_ptr<EdgeQueue> forwardQueue_;
 
-            /** \brief The reverse queue. */
+            /** \brief The forward queue. */
+            EdgeQueue forwardQueue_;
+
+            /** \brief A type for elements in the vertex queue. */
             using KeyVertexPair = std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<aitstar::Vertex>>;
+
+            /** \brief The type of the vertex queue. */
             using VertexQueue =
                 ompl::BinaryHeap<KeyVertexPair, std::function<bool(const KeyVertexPair &, const KeyVertexPair &)>>;
-            std::unique_ptr<VertexQueue> reverseQueue_;
+
+            /** \brief The reverse queue. */
+            VertexQueue reverseQueue_;
 
             /** \brief The edges to be inserted in the forward queue. */
             std::vector<aitstar::Edge> edgesToBeInserted_{};
@@ -290,4 +296,4 @@ namespace ompl
     }  // namespace geometric
 }  // namespace ompl
 
-#endif  // OMPL_GEOMETRIC_PLANNERS_AITSTAR_AITSTAR
+#endif  // OMPL_GEOMETRIC_PLANNERS_INFORMEDTREES_AITSTAR
