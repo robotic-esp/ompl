@@ -133,6 +133,12 @@ namespace ompl
             /** \brief Get whether pruning is enabled or not. */
             bool isPruningEnabled() const;
 
+            /** \brief Set whether to use a k-nearest RGG connection model. If false, AIT* uses an r-disc model. */
+            void setUseKNearest(bool useKNearest);
+
+            /** \brief Get whether to use a k-nearest RGG connection model. If false, AIT* uses an r-disc model. */
+            bool getUseKNearest() const;
+
             /** \brief Enable LPA* repair of reverse search. */
             void setRepairReverseSearch(bool repairReverseSearch);
 
@@ -180,6 +186,12 @@ namespace ompl
             /** \brief Rebuilds the forward queue. */
             void rebuildReverseQueue();
 
+            /** \brief Prints a message using OMPL_INFORM to let the user know that AIT* found a new solution. */
+            void informAboutNewSolution() const;
+
+            /** \brief Prints a message using OMPL_INFORM to let the user know of the planner status. */
+            void informAboutPlannerStatus(ompl::base::PlannerStatus::StatusType status) const;
+
             /** \brief Returns the path a start to the argument. */
             std::shared_ptr<ompl::geometric::PathGeometric>
             getPathToVertex(const std::shared_ptr<aitstar::Vertex> &vertex) const;
@@ -223,6 +235,12 @@ namespace ompl
 
             /** \brief Returns the best cost to come form the goal of any start. */
             ompl::base::Cost computeBestCostToComeFromGoalOfAnyStart() const;
+
+            /** \brief Counts the number of vertices in the forward tree. */
+            std::size_t countNumVerticesInForwardTree() const;
+
+            /** \brief Counts the number of vertices in the reverse tree. */
+            std::size_t countNumVerticesInReverseTree() const;
 
             /** \brief Sets the cost to come from to goal of the reverse search to infinity for the whole branch.
              */
@@ -286,6 +304,9 @@ namespace ompl
 
             /** \brief Syntactic helper to get at the motion validator of the planner base class. */
             ompl::base::MotionValidatorPtr motionValidator_;
+
+            /** \brief The number of processed edges. */
+            std::size_t numProcessedEdges_{0u};
 
             /** \brief The number of edge collision checks performed. */
             std::size_t numEdgeCollisionChecks_{0u};
