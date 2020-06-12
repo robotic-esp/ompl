@@ -34,8 +34,8 @@
 
 // Authors: Marlin Strub
 
-#ifndef OMPL_GEOMETRIC_PLANNERS_AEITSTAR_VERTEX_
-#define OMPL_GEOMETRIC_PLANNERS_AEITSTAR_VERTEX_
+#ifndef OMPL_GEOMETRIC_PLANNERS_EITSTAR_VERTEX_
+#define OMPL_GEOMETRIC_PLANNERS_EITSTAR_VERTEX_
 
 #include <memory>
 #include <vector>
@@ -53,7 +53,7 @@ namespace ompl
     {
         namespace eitstar
         {
-            // Forward declare the AI-BIT* state class.
+            // Forward declare the EIT* state class.
             class State;
 
             /** \brief The vertex class for both the forward and reverse search. */
@@ -62,25 +62,13 @@ namespace ompl
             public:
                 /** \brief Constructs the vertex, which must be associated with a state. */
                 Vertex(const std::shared_ptr<State> &state,
-                       const std::shared_ptr<ompl::base::OptimizationObjective> &objective);
+                       const std::shared_ptr<ompl::base::OptimizationObjective> &objective, const Direction &direction);
 
                 /** \brief Destructs the vertex. */
-                ~Vertex() = default;
+                ~Vertex();
 
                 /** \brief Gets the unique vertex-id of this vertex. */
                 std::size_t getId() const;
-
-                /** \brief Returns the cost-to-come to this vertex. */
-                ompl::base::Cost getCost() const;
-
-                /** \brief Sets the cost to come to this vertex. */
-                void setCost(const ompl::base::Cost &cost);
-
-                /** \brief Returns the cost-to-come to this vertex when it was last expanded. */
-                ompl::base::Cost getExtendedCost() const;
-
-                /** \brief Sets the cost-to-come to this vertex when it was last expanded. */
-                void setExtendedCost(const ompl::base::Cost &cost);
 
                 /** \brief Returns the state associated with this vertex. */
                 std::shared_ptr<State> getState() const;
@@ -93,7 +81,7 @@ namespace ompl
 
                 /** \brief Update the cost-to-come of the children. */
                 std::vector<std::shared_ptr<Vertex>>
-                updateChildren(const std::shared_ptr<ompl::base::OptimizationObjective> &objective);
+                updateCurrentCostOfChildren(const std::shared_ptr<ompl::base::OptimizationObjective> &objective);
 
                 /** \brief Adds a vertex to this vertex's children. */
                 void addChild(const std::shared_ptr<Vertex> &vertex);
@@ -110,9 +98,6 @@ namespace ompl
                 /** \brief Returns the twin of this vertex, i.e., the vertex in the other search tree with the same
                  * underlying state. */
                 std::weak_ptr<Vertex> getTwin() const;
-
-                /** \brief Updates the cost by combining the parent cost-to-come and the edge cost. */
-                void updateCost(const std::shared_ptr<ompl::base::OptimizationObjective> &objective);
 
                 /** \brief Resets the parent of the vertex. */
                 void updateParent(const std::shared_ptr<Vertex> &vertex);
@@ -140,6 +125,9 @@ namespace ompl
                 /** \brief The unique id of this vertex. */
                 const std::size_t id_;
 
+                /** \brief The objective. */
+                const std::shared_ptr<const ompl::base::OptimizationObjective> objective_;
+
                 /** \brief The cost-to-come to this vertex. */
                 ompl::base::Cost cost_{std::numeric_limits<double>::signaling_NaN()};
 
@@ -159,11 +147,11 @@ namespace ompl
                 /** \brief The tag when this vertex was last expanded. */
                 std::size_t expandTag_{0u};
 
-                /** \brief The cost-to-come to this vertex when it first extended. */
-                ompl::base::Cost extendCost_{std::numeric_limits<double>::signaling_NaN()};
-
                 /** \brief The state this vertex is associated with. */
                 std::shared_ptr<State> state_;
+
+                /** \brief The direction of the tree this vertex is part of. */
+                Direction direction_;
 
                 /** \brief The edge queue is a friend class to allow efficient updates of outgoing edges of this vertex
                  * in the queue. */
@@ -178,10 +166,10 @@ namespace ompl
                     outgoingReverseQueueLookup_;
             };
 
-        }  // namespace aibitstar
+        }  // namespace eitstar
 
     }  // namespace geometric
 
 }  // namespace ompl
 
-#endif  // OMPL_GEOMETRIC_PLANNERS_AEITSTAR_QUEUE_
+#endif  // OMPL_GEOMETRIC_PLANNERS_EITSTAR_QUEUE_

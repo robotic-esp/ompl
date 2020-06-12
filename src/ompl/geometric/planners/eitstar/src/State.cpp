@@ -104,7 +104,7 @@ namespace ompl
                 else  // If this state does not yet exist as a forward vertex, create it.
                 {
                     // Create a forward vertex from this state.
-                    forwardVertex = std::make_shared<Vertex>(shared_from_this(), objective_);
+                    forwardVertex = std::make_shared<Vertex>(shared_from_this(), objective_, Direction::FORWARD);
 
                     // If this state has a reverse vertex, the newly created vertex is its twin.
                     if (auto reverseVertex = reverseVertex_.lock())
@@ -129,7 +129,7 @@ namespace ompl
                 else  // If this state does not yet exist as a reverse vertex, create it.
                 {
                     // Create a reverse vertex from this state.
-                    reverseVertex = std::make_shared<Vertex>(shared_from_this(), objective_);
+                    reverseVertex = std::make_shared<Vertex>(shared_from_this(), objective_, Direction::REVERSE);
 
                     // If this state has a forward vertex, the newly created vertex is its twin.
                     if (auto forwardVertex = forwardVertex_.lock())
@@ -174,6 +174,11 @@ namespace ompl
                 estimatedCostToGo_ = cost;
             }
 
+            void State::setAdmissibleCostToGo(ompl::base::Cost cost)
+            {
+                admissibleCostToGo_ = cost;
+            }
+
             void State::setLowerBoundCostToGo(ompl::base::Cost cost)
             {
                 lowerBoundCostToGo_ = cost;
@@ -182,6 +187,11 @@ namespace ompl
             void State::setLowerBoundCostToCome(ompl::base::Cost cost)
             {
                 lowerBoundCostToCome_ = cost;
+            }
+
+            void State::setCurrentCostToCome(ompl::base::Cost cost)
+            {
+                currentCostToCome_ = cost;
             }
 
             std::size_t State::getEstimatedEffortToGo() const
@@ -194,6 +204,11 @@ namespace ompl
                 return estimatedCostToGo_;
             }
 
+            ompl::base::Cost State::getAdmissibleCostToGo() const
+            {
+                return admissibleCostToGo_;
+            }
+
             ompl::base::Cost State::getLowerBoundCostToGo() const
             {
                 return lowerBoundCostToGo_;
@@ -202,6 +217,11 @@ namespace ompl
             ompl::base::Cost State::getLowerBoundCostToCome() const
             {
                 return lowerBoundCostToCome_;
+            }
+
+            ompl::base::Cost State::getCurrentCostToCome() const
+            {
+                return currentCostToCome_;
             }
 
         }  // namespace eitstar

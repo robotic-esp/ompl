@@ -34,8 +34,8 @@
 
 // Authors: Marlin Strub
 
-#ifndef OMPL_GEOMETRIC_PLANNERS_AEITSTAR_AEITSTAR_
-#define OMPL_GEOMETRIC_PLANNERS_AEITSTAR_AEITSTAR_
+#ifndef OMPL_GEOMETRIC_PLANNERS_EITSTAR_EITSTAR_
+#define OMPL_GEOMETRIC_PLANNERS_EITSTAR_EITSTAR_
 
 #include <memory>
 
@@ -81,17 +81,10 @@ namespace ompl
             void setRadiusFactor(double factor);
 
             /** \brief Sets the radius factor. */
-            void setRepairFactor(double factor);
-
-            /** \brief Sets the radius factor. */
             void setSuboptimalityFactor(double factor);
 
-            /** \brief Sets the option whether to repair the reverse search tree when the forward search detects a
-             * collision. */
-            void enableRepairingReverseTree(bool enable);
-
-            /** \brief Sets the option whether to repair the reverse search tree when the forward search detects a
-             * collision. */
+            /** \brief Sets the option whether to increse collision detection on the reverse search tree when the
+             * forward search detects a collision. */
             void enableCollisionDetectionInReverseSearch(bool enable);
 
             /** \brief Returns a copy of the forward queue. */
@@ -147,11 +140,7 @@ namespace ompl
             void improveApproximation();
 
             /** \brief Updates the solution. */
-            void updateSolution(const std::shared_ptr<eitstar::State>& goalState);
-
-            /** \brief Repairs the reverse search tree upon finding an invalid edge. */
-            void repairReverseSearchTree(const eitstar::Edge &invalidEdge,
-                                         std::shared_ptr<eitstar::State> &invalidatedState);
+            void updateSolution(const std::shared_ptr<eitstar::State> &goalState);
 
             /** \brief Increases the collision detection resolution and restart reverse search. */
             void increaseSparseCollisionDetectionResolutionAndRestartReverseSearch();
@@ -174,7 +163,7 @@ namespace ompl
             bool doesImproveReversePath(const eitstar::Edge &edge) const;
 
             /** \brief Returns whether the edge can improve the reverse tree. */
-            bool doesImproveReverseTree(const eitstar::Edge &edge) const;
+            bool doesImproveReverseTree(const eitstar::Edge &edge, const ompl::base::Cost &admissibleEdgeCost) const;
 
             /** \brief Returns whether the edge can improve the forward path. */
             bool couldImproveForwardPath(const eitstar::Edge &edge) const;
@@ -214,13 +203,6 @@ namespace ompl
 
             /** \brief The current suboptimality factor of the forward search. */
             double suboptimalityFactor_{std::numeric_limits<float>::infinity()};
-
-            /** \brief The factor that determines when the reverse search should be repaired. */
-            double repairFactor_{std::numeric_limits<float>::infinity()};
-
-            /** \brief The option that specifies whether to repair the reverse search when the forward search detects a
-             * collision on an edge. */
-            bool isRepairingOfReverseTreeEnabled_{false};
 
             /** \brief The option that specifies whether sparse collision detection on the reverse search tree is
              * enabled. */
@@ -291,4 +273,4 @@ namespace ompl
 
 }  // namespace ompl
 
-#endif  // OMPL_GEOMETRIC_PLANNERS_AEITSTAR_AEITSTAR_
+#endif  // OMPL_GEOMETRIC_PLANNERS_EITSTAR_EITSTAR_

@@ -39,6 +39,8 @@
 #include <algorithm>
 #include <limits>
 
+#include "ompl/geometric/planners/eitstar/State.h"
+
 namespace ompl
 {
     namespace geometric
@@ -55,38 +57,34 @@ namespace ompl
             }  // namespace
 
             Vertex::Vertex(const std::shared_ptr<State> &state,
-                           const std::shared_ptr<ompl::base::OptimizationObjective> &objective)
+                           const std::shared_ptr<ompl::base::OptimizationObjective> &objective,
+                           const Direction &direction)
               : id_(generateId())
-              , cost_(objective->infiniteCost())
+              , objective_(objective)
               , edgeCost_(objective->infiniteCost())
-              , extendCost_(objective->infiniteCost())
               , state_(state)
+              , direction_(direction)
             {
+            }
+
+            Vertex::~Vertex()
+            {
+                if (direction_ == Direction::FORWARD)
+                {
+                    state_->setCurrentCostToCome(objective_->infiniteCost());
+                }
+                else
+                {
+                    assert(direction_ == Direction::REVERSE);
+                    state_->setAdmissibleCostToGo(objective_->infiniteCost());
+                    state_->setEstimatedCostToGo(objective_->infiniteCost());
+                    state_->setEstimatedEffortToGo(std::numeric_limits<std::size_t>::max());
+                }
             }
 
             std::size_t Vertex::getId() const
             {
                 return id_;
-            }
-
-            ompl::base::Cost Vertex::getCost() const
-            {
-                return cost_;
-            }
-
-            void Vertex::setCost(const ompl::base::Cost &cost)
-            {
-                cost_ = cost;
-            }
-
-            ompl::base::Cost Vertex::getExtendedCost() const
-            {
-                return extendCost_;
-            }
-
-            void Vertex::setExtendedCost(const ompl::base::Cost &cost)
-            {
-                extendCost_ = cost;
             }
 
             std::shared_ptr<State> Vertex::getState() const
@@ -105,13 +103,14 @@ namespace ompl
             }
 
             std::vector<std::shared_ptr<Vertex>>
-            Vertex::updateChildren(const std::shared_ptr<ompl::base::OptimizationObjective> &objective)
+            Vertex::updateCurrentCostOfChildren(const std::shared_ptr<ompl::base::OptimizationObjective> &objective)
             {
                 std::vector<std::shared_ptr<Vertex>> accumulatedChildren = children_;
                 for (auto &child : children_)
                 {
-                    child->updateCost(objective);
-                    auto childsAccumulatedChildren = child->updateChildren(objective);
+                    child->getState()->setCurrentCostToCome(
+                        objective->combineCosts(state_->getCurrentCostToCome(), edgeCost_));
+                    auto childsAccumulatedChildren = child->updateCurrentCostOfChildren(objective);
                     accumulatedChildren.insert(accumulatedChildren.end(), childsAccumulatedChildren.begin(),
                                                childsAccumulatedChildren.end());
                 }
@@ -187,12 +186,6 @@ namespace ompl
                     parent->removeChild(shared_from_this());
                 }
                 parent_ = vertex;
-            }
-
-            void Vertex::updateCost(const std::shared_ptr<ompl::base::OptimizationObjective> &objective)
-            {
-                assert(parent_.lock());
-                cost_ = objective->combineCosts(parent_.lock()->getCost(), edgeCost_);
             }
 
             void Vertex::resetParent()
