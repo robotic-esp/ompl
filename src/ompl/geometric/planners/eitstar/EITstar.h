@@ -87,6 +87,15 @@ namespace ompl
              * forward search detects a collision. */
             void enableCollisionDetectionInReverseSearch(bool enable);
 
+            /** \brief Whether increasingly dense collision detection in the reverse search is enabled. */
+            bool isCollisionDetectionInReverseSearchEnabled() const;
+
+            /** \brief Set whether pruning is enabled or not. */
+            void enablePruning(bool prune);
+
+            /** \brief Get whether pruning is enabled or not. */
+            bool isPruningEnabled() const;
+
             /** \brief Returns a copy of the forward queue. */
             std::vector<eitstar::Edge> getForwardQueue() const;
 
@@ -206,25 +215,25 @@ namespace ompl
 
             /** \brief The option that specifies whether sparse collision detection on the reverse search tree is
              * enabled. */
-            bool isCollisionDetectionInReverseTreeEnabled_{false};
+            bool isCollisionDetectionInReverseTreeEnabled_{true};
 
             /** \brief The number of sparse collision detections on level 0. */
             std::size_t initialNumSparseCollisionChecks_{1u};
 
-            /** \brief The number of sparse collision detections performed on the reverse search. */
+            /** \brief The number of sparse collision detections performed on the reverse search on this level. */
             std::size_t numSparseCollisionChecksCurrentLevel_{1u};
 
-            /** \brief The number of sparse collision detections performed on the reverse search. */
+            /** \brief The number of sparse collision detections performed on the reverse search on the previous level. */
             std::size_t numSparseCollisionChecksPreviousLevel_{0u};
+
+            /** \brief Whether pruning is enabled. */
+            bool isPruningEnabled_{true};
 
             /** \brief The edge cache that enables the just-in-time reverse search. */
             std::vector<eitstar::Edge> jitSearchEdgeCache_{};
 
             /** \brief The state used to do sparse collision detection with. */
             ompl::base::State *detectionState_;
-
-            /** \brief The cost of the current best solution. */
-            ompl::base::Cost bestCost_{std::numeric_limits<double>::signaling_NaN()};
 
             /** \brief The roots of the forward search tree (forest). */
             std::vector<std::shared_ptr<eitstar::Vertex>> forwardRoots_;
@@ -263,7 +272,7 @@ namespace ompl
             std::shared_ptr<ompl::base::MotionValidator> motionValidator_;
 
             /** \brief The cost of the incumbent solution. */
-            std::shared_ptr<ompl::base::Cost> solutionCost_;
+            ompl::base::Cost solutionCost_{std::numeric_limits<double>::signaling_NaN()};
 
             /** \brief The cost of the best reverse path. */
             ompl::base::Cost reverseCost_;

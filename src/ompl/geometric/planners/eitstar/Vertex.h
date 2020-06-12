@@ -105,6 +105,9 @@ namespace ompl
                 /** \brief Sets the edge cost of the vertex. */
                 void setEdgeCost(const ompl::base::Cost &edgeCost);
 
+                /** \brief Sets the edge cost of the vertex. */
+                ompl::base::Cost getEdgeCost() const;
+
                 /** \brief Returns the parent of the vertex. */
                 void resetParent();
 
@@ -127,9 +130,6 @@ namespace ompl
 
                 /** \brief The objective. */
                 const std::shared_ptr<const ompl::base::OptimizationObjective> objective_;
-
-                /** \brief The cost-to-come to this vertex. */
-                ompl::base::Cost cost_{std::numeric_limits<double>::signaling_NaN()};
 
                 /** \brief The cost of the edge which connects this vertex with its parent. */
                 ompl::base::Cost edgeCost_{std::numeric_limits<double>::signaling_NaN()};
