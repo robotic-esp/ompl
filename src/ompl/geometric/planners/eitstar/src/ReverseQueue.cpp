@@ -49,10 +49,10 @@ namespace ompl
         {
             ReverseQueue::ReverseQueue(const std::shared_ptr<const ompl::base::OptimizationObjective> &objective)
               : objective_(objective)
-              , queue_([&objective](const std::pair<std::array<ompl::base::Cost, 2u>, Edge> &lhs,
+              , queue_([objective](const std::pair<std::array<ompl::base::Cost, 2u>, Edge> &lhs,
                                     const std::pair<std::array<ompl::base::Cost, 2u>, Edge> &rhs) {
                   return std::lexicographical_compare(
-                      lhs.first.begin(), lhs.first.end(), rhs.first.begin(), rhs.first.end(),
+                      lhs.first.cbegin(), lhs.first.cend(), rhs.first.cbegin(), rhs.first.cend(),
                       [&objective](const ompl::base::Cost &lhs, const ompl::base::Cost &rhs) {
                           return objective->isCostBetterThan(lhs, rhs);
                       });
