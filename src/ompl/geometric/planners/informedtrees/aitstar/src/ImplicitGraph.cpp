@@ -336,6 +336,12 @@ namespace ompl
                         ++numSampledStates_;
                     } while (!spaceInformation_->getStateValidityChecker()->isValid(newVertices.back()->getState()));
 
+                    // If this state happens to satisfy the goal condition, add it as such.
+                    if (problemDefinition_->getGoal()->isSatisfied(newVertices.back()->getState()))
+                    {
+                        goalVertices_.emplace_back(newVertices.back());
+                    }
+
                     ++numValidSamples_;
                 }
 
