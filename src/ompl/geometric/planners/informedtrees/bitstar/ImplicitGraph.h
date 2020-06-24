@@ -194,6 +194,12 @@ namespace ompl
             /** \brief Get the rewiring scale factor. */
             double getRewireFactor() const;
 
+            /** \brief Set the maximum number of goals BIT* will sample from sampleable goal regions. */
+            void setMaxNumberOfGoals(unsigned int maxNumberOfGoals);
+
+            /** \brief Get the maximum number of goals BIT* will sample from sampleable goal regions. */
+            unsigned int getMaxNumberOfGoals() const;
+
             /** \brief Enable a k-nearest search for instead of an r-disc search. */
             void setUseKNearest(bool useKNearest);
 
@@ -488,6 +494,9 @@ namespace ompl
 
             /** \brief Whether to consider approximate solutions. */
             bool findApprox_{false};
+
+            /** \brief The maximum number of goals BIT* will sample. */
+            unsigned int maxNumGoals_{10u};
 
             /** \brief The average number of allowed failed attempts before giving up on a sample when sampling a new
              * batch. */
