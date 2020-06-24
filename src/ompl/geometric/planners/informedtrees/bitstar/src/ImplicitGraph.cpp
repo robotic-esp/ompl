@@ -980,7 +980,14 @@ namespace ompl
                         ++numStateCollisionChecks_;
                         if (spaceInformation_->isValid(newState->state()))
                         {
+                            // Remember that this is a new state.
                             newStates.push_back(newState);
+
+                            // If this state happens to satisfy the goal, add it to the goal vertices.
+                            if (problemDefinition_->getGoal()->isSatisfied(newState->state()))
+                            {
+                                goalVertices_.emplace_back(newState);
+                            }
 
                             // Update the number of uniformly distributed states
                             ++numUniformStates_;
