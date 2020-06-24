@@ -292,6 +292,12 @@ namespace ompl
             /** \brief Get whether BIT* is considering approximate solutions. */
             bool getConsiderApproximateSolutions() const;
 
+            /** \brief Set the maximum number of goals BIT* will sample from sampleable goal regions. */
+            void setMaxNumberOfGoals(unsigned int numberOfGoals);
+
+            /** \brief Get the maximum number of goals BIT* will sample from sampleable goal regions. */
+            unsigned int getMaxNumberOfGoals() const;
+
             /** \brief Set a different nearest neighbours datastructure. */
             template <template <typename T> class NN>
             void setNearestNeighbors();

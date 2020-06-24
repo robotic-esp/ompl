@@ -420,7 +420,7 @@ namespace ompl
                     addedGoal = true;
                 }
                 // No else, there was no goal.
-            } while (inputStates.haveMoreGoalStates());
+            } while (inputStates.haveMoreGoalStates() && goalVertices_.size() <= maxNumGoals_);
 
             /*
             And then do the same for starts. We do this last as the starts are added to the queue, which uses a
@@ -1563,6 +1563,16 @@ namespace ompl
         double BITstar::ImplicitGraph::getRewireFactor() const
         {
             return rewireFactor_;
+        }
+
+        void BITstar::ImplicitGraph::setMaxNumberOfGoals(unsigned int maxNumberOfGoals)
+        {
+            maxNumGoals_ = maxNumberOfGoals;
+        }
+
+        unsigned int BITstar::ImplicitGraph::getMaxNumberOfGoals() const
+        {
+            return maxNumGoals_;
         }
 
         void BITstar::ImplicitGraph::setUseKNearest(bool useKNearest)
