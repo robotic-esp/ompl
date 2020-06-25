@@ -169,7 +169,7 @@ namespace ompl
                 do
                 {
                     // Get a new goal. If there are none, or the underlying state is invalid this will be a nullptr.
-                    auto newGoalState = inputStates->nextGoal(terminationCondition);
+                    auto newGoalState = inputStates->nextGoal(ompl::base::plannerAlwaysTerminatingCondition());
 
                     // If there was a new valid goal, register it as such and remember that a goal has been added.
                     if (static_cast<bool>(newGoalState))
@@ -178,7 +178,8 @@ namespace ompl
                         addedNewGoalState = true;
                     }
 
-                } while (inputStates->haveMoreGoalStates() && goalVertices_.size() < maxNumGoals_);
+                } while (inputStates->haveMoreGoalStates() && goalVertices_.size() < maxNumGoals_ &&
+                         !terminationCondition);
 
                 // Having updated the goals, we now update the starts.
                 while (inputStates->haveMoreStartStates())
