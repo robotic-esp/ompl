@@ -178,7 +178,7 @@ namespace ompl
                         addedNewGoalState = true;
                     }
 
-                } while (inputStates->haveMoreGoalStates() && goalVertices_.size() <= maxNumGoals_);
+                } while (inputStates->haveMoreGoalStates() && goalVertices_.size() < maxNumGoals_);
 
                 // Having updated the goals, we now update the starts.
                 while (inputStates->haveMoreStartStates())
