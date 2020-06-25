@@ -401,7 +401,8 @@ namespace ompl
                 // Variable
                 // A new goal pointer, if there are none, it will be a nullptr.
                 // We will wait for the duration of PTC for a new goal to appear.
-                const ompl::base::State *newGoal = inputStates.nextGoal(terminationCondition);
+                const ompl::base::State *newGoal =
+                    inputStates.nextGoal(ompl::base::plannerAlwaysTerminatingCondition());
 
                 // Check if it's valid
                 if (static_cast<bool>(newGoal))
@@ -420,7 +421,7 @@ namespace ompl
                     addedGoal = true;
                 }
                 // No else, there was no goal.
-            } while (inputStates.haveMoreGoalStates() && goalVertices_.size() < maxNumGoals_);
+            } while (inputStates.haveMoreGoalStates() && goalVertices_.size() < maxNumGoals_ && !terminationCondition);
 
             /*
             And then do the same for starts. We do this last as the starts are added to the queue, which uses a
