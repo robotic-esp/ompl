@@ -112,8 +112,8 @@ namespace ompl
                                         &BITstar::getStrictQueueOrdering, "0,1");
             Planner::declareParam<bool>("find_approximate_solutions", this, &BITstar::setConsiderApproximateSolutions,
                                         &BITstar::getConsiderApproximateSolutions, "0,1");
-            Planner::declareParam<bool>("set_max_num_goals", this, &BITstar::setMaxNumberOfGoals,
-                                        &BITstar::getMaxNumberOfGoals, "1,1000");
+            Planner::declareParam<unsigned int>("set_max_num_goals", this, &BITstar::setMaxNumberOfGoals,
+                                                &BITstar::getMaxNumberOfGoals, "1,1000");
 
             // Register my progress info:
             addPlannerProgressProperty("best cost DOUBLE", [this] { return bestCostProgressProperty(); });
