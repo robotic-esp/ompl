@@ -420,7 +420,7 @@ namespace ompl
                     addedGoal = true;
                 }
                 // No else, there was no goal.
-            } while (inputStates.haveMoreGoalStates() && goalVertices_.size() <= maxNumGoals_);
+            } while (inputStates.haveMoreGoalStates() && goalVertices_.size() < maxNumGoals_);
 
             /*
             And then do the same for starts. We do this last as the starts are added to the queue, which uses a
