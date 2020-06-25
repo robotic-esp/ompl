@@ -90,7 +90,7 @@ namespace ompl
             declareParam<bool>("find_approximate_solutions", this, &AITstar::trackApproximateSolutions,
                                &AITstar::areApproximateSolutionsTracked, "0,1");
             declareParam<unsigned int>("set_max_num_goals", this, &AITstar::setMaxNumberOfGoals,
-                                       &AITstar::getMaxNumberOfGoals, "1,1000");
+                                       &AITstar::getMaxNumberOfGoals, "1:1:1000");
 
             // Register the progress properties.
             addPlannerProgressProperty("iterations INTEGER", [this]() { return std::to_string(numIterations_); });
