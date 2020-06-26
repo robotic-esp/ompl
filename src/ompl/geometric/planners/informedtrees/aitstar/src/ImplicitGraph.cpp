@@ -166,20 +166,23 @@ namespace ompl
                 // First update the goals. We have to call inputStates->nextGoal(terminationCondition) at least once
                 // (regardless of the return value of inputStates->moreGoalStates()) in case the termination condition
                 // wants us to wait for a goal.
-                do
+                if (goalVertices_.size() < maxNumGoals_)
                 {
-                    // Get a new goal. If there are none, or the underlying state is invalid this will be a nullptr.
-                    auto newGoalState = inputStates->nextGoal(ompl::base::plannerAlwaysTerminatingCondition());
-
-                    // If there was a new valid goal, register it as such and remember that a goal has been added.
-                    if (static_cast<bool>(newGoalState))
+                    do
                     {
-                        registerGoalState(newGoalState);
-                        addedNewGoalState = true;
-                    }
+                        // Get a new goal. If there are none, or the underlying state is invalid this will be a nullptr.
+                        auto newGoalState = inputStates->nextGoal(ompl::base::plannerAlwaysTerminatingCondition());
 
-                } while (inputStates->haveMoreGoalStates() && goalVertices_.size() < maxNumGoals_ &&
-                         !terminationCondition);
+                        // If there was a new valid goal, register it as such and remember that a goal has been added.
+                        if (static_cast<bool>(newGoalState))
+                        {
+                            registerGoalState(newGoalState);
+                            addedNewGoalState = true;
+                        }
+
+                    } while (inputStates->haveMoreGoalStates() && goalVertices_.size() < maxNumGoals_ &&
+                             !terminationCondition);
+                }
 
                 // Having updated the goals, we now update the starts.
                 while (inputStates->haveMoreStartStates())
