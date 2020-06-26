@@ -37,6 +37,7 @@
 #include "ompl/base/objectives/PathLengthOptimizationObjective.h"
 #include <memory>
 #include "ompl/base/samplers/informed/PathLengthDirectInfSampler.h"
+#include "ompl/base/samplers/informed/RejectionInfSampler.h"
 
 ompl::base::PathLengthOptimizationObjective::PathLengthOptimizationObjective(const SpaceInformationPtr &si)
   : ompl::base::OptimizationObjective(si)
@@ -66,7 +67,16 @@ ompl::base::Cost ompl::base::PathLengthOptimizationObjective::motionCostHeuristi
 ompl::base::InformedSamplerPtr ompl::base::PathLengthOptimizationObjective::allocInformedStateSampler(
     const ProblemDefinitionPtr &probDefn, unsigned int maxNumberCalls) const
 {
-// Make the direct path-length informed sampler and return. If OMPL was compiled with Eigen, a direct version is
-// available, if not a rejection-based technique can be used
-    return std::make_shared<PathLengthDirectInfSampler>(probDefn, maxNumberCalls);
+    // Try to use a direct sampler if the goal is of approriate type, use a rejection sampler otherwise.
+    if (probDefn->getGoal()->hasType(ompl::base::GoalType::GOAL_STATE) ||
+        probDefn->getGoal()->hasType(ompl::base::GoalType::GOAL_STATES))
+    {
+        // If OMPL was compiled with Eigen, a direct version is available, if not a rejection-based technique can be
+        // used.
+        return std::make_shared<PathLengthDirectInfSampler>(probDefn, maxNumberCalls);
+    }
+    else
+    {
+        return std::make_shared<RejectionInfSampler>(probDefn, maxNumberCalls);
+    }
 }
