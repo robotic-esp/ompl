@@ -189,8 +189,8 @@ namespace ompl
                 /** \brief Whether to use a k-nearest RGG. If false, AIT* uses an r-disc RGG. */
                 bool useKNearest_{true};
 
-                /** \brief The maximum number of goals BIT* will sample. */
-                unsigned int maxNumGoals_{10u};
+                /** \brief The maximum number of goals AIT* will sample. */
+                unsigned int maxNumGoals_{1u};
 
                 /** \brief The radius that defines the neighborhood of a vertex if using an r-disc graph. */
                 double radius_{std::numeric_limits<double>::infinity()};
