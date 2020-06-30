@@ -69,11 +69,11 @@ namespace ompl
             std::vector<const State *> startStates;
             std::vector<State *> goalStates;
 
-            if (!probDefn_->getGoal()->hasType(ompl::base::GOAL_SAMPLEABLE_REGION))
+            if (!probDefn_->getGoal()->hasType(ompl::base::GOAL_STATE) &&
+                !probDefn_->getGoal()->hasType(ompl::base::GOAL_STATES))
             {
                 throw Exception("PathLengthDirectInfSampler: The direct path-length informed sampler currently only "
-                                "supports goals that can be cast to a sampleable goal region (i.e., are countable "
-                                "sets).");
+                                "supports goals of type GOAL_STATE and GOAL_STATES.");
             }
 
             /// Note: We don't check that there is a cost-to-go heuristic set in the optimization objective, as this
