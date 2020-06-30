@@ -74,8 +74,8 @@ ompl::base::InformedSamplerPtr ompl::base::PathLengthOptimizationObjective::allo
     const ProblemDefinitionPtr &probDefn, unsigned int maxNumberCalls) const
 {
     // Try to use a direct sampler if the goal is of approriate type, use a rejection sampler otherwise.
-    if (probDefn->getGoal()->hasType(ompl::base::GoalType::GOAL_STATE) ||
-        probDefn->getGoal()->hasType(ompl::base::GoalType::GOAL_STATES))
+    const auto goalType = probDefn->getGoal()->getType();
+    if (goalType == ompl::base::GoalType::GOAL_STATE || goalType == ompl::base::GoalType::GOAL_STATES)
     {
         // If OMPL was compiled with Eigen, a direct version is available, if not a rejection-based technique can be
         // used.
