@@ -584,7 +584,9 @@ namespace ompl
                 for (const auto &startVertex : startVertices_)
                 {
                     // Take the better of the min cost so far and the cost-to-go from this start
-                    minCost_ = costHelpPtr_->betterCost(minCost_, costHelpPtr_->costToGoHeuristic(startVertex));
+                    minCost_ = costHelpPtr_->betterCost(minCost_,
+                                                        problemDefinition_->getOptimizationObjective()->costToGo(
+                                                            startVertex->state(), problemDefinition_->getGoal().get()));
                 }
 
                 // If we have at least one start and goal, allocate a sampler
