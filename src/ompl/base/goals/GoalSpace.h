@@ -51,7 +51,7 @@ namespace ompl
             /** \brief Create a goal representation that is a space */
             GoalSpace(const SpaceInformationPtr &si) : GoalSampleableRegion(si)
             {
-                type_ = GOAL_SAMPLEABLE_REGION;
+                type_ = GOAL_SPACE;
             }
 
             ~GoalSpace() override;
