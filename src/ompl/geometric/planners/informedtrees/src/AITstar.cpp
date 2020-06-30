@@ -709,9 +709,9 @@ namespace ompl
                     // Add the goals to the reverse queue.
                     for (const auto &goal : graph_.getGoalVertices())
                     {
+                        goal->setCostToComeFromGoal(objective_->identityCost());
                         auto reverseQueuePointer = reverseQueue_.insert(std::make_pair(computeSortKey(goal), goal));
                         goal->setReverseQueuePointer(reverseQueuePointer);
-                        goal->setCostToComeFromGoal(objective_->identityCost());
                     }
 
                     // This is a new batch, so the search hasn't been started.
