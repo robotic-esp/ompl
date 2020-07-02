@@ -43,7 +43,11 @@ ompl::base::GoalSpace::~GoalSpace()
 
 void ompl::base::GoalSpace::sampleGoal(base::State *st) const
 {
-    goalSampler_->sampleUniform(st);
+    do
+    {
+        goalSampler_->sampleUniform(st);
+    }
+    while(!si_->isValid(st));
 }
 
 unsigned int ompl::base::GoalSpace::maxSampleCount() const
