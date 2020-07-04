@@ -59,6 +59,36 @@ namespace ompl
           , motionValidator_(spaceInfo->getMotionValidator())
           , solutionCost_()
         {
+            // Specify EIT*'s planner specs.
+            specs_.recognizedGoal = base::GOAL_SAMPLEABLE_REGION;
+            specs_.multithreaded = false;
+            specs_.approximateSolutions = true;
+            specs_.optimizingPaths = true;
+            specs_.directed = true;
+            specs_.provingSolutionNonExistence = false;
+            specs_.canReportIntermediateSolutions = true;
+
+            // Register the setting callbacks.
+            declareParam<bool>("use_k_nearest", this, &EITstar::setUseKNearest, &EITstar::getUseKNearest, "0,1");
+            declareParam<double>("rewire_factor", this, &EITstar::setRadiusFactor, &EITstar::getRadiusFactor,
+                                 "1.0:0.01:3.0");
+            declareParam<std::size_t>("batch_size", this, &EITstar::setBatchSize, &EITstar::getBatchSize, "1:1:10000");
+            declareParam<bool>("use_graph_pruning", this, &EITstar::enablePruning, &EITstar::isPruningEnabled, "0,1");
+            declareParam<bool>("find_approximate_solutions", this, &EITstar::trackApproximateSolutions,
+                               &EITstar::areApproximateSolutionsTracked, "0,1");
+            declareParam<unsigned int>("set_max_num_goals", this, &EITstar::setMaxNumberOfGoals,
+                                       &EITstar::getMaxNumberOfGoals, "1:1:1000");
+
+            // Register the progress properties.
+            addPlannerProgressProperty("iterations INTEGER", [this]() { return std::to_string(iteration_); });
+            addPlannerProgressProperty("best cost DOUBLE", [this]() { return std::to_string(solutionCost_.value()); });
+            addPlannerProgressProperty("state collision checks INTEGER",
+                                       [this]() { return std::to_string(graph_.getNumberOfSampledStates()); });
+            addPlannerProgressProperty("edge collision checks INTEGER",
+                                       [this]() { return std::to_string(numCollisionCheckedEdges_); });
+            addPlannerProgressProperty("nearest neighbour calls INTEGER",
+                                       [this]() { return std::to_string(graph_.getNumberOfNearestNeighborCalls());
+                                       });
         }
 
         EITstar::~EITstar()
@@ -141,6 +171,9 @@ namespace ompl
 
         ompl::base::PlannerStatus EITstar::solve(const ompl::base::PlannerTerminationCondition &terminationCondition)
         {
+            // The planner status to return.
+            auto status = ompl::base::PlannerStatus::StatusType::UNKNOWN;
+
             // Make sure everything is setup.
             if (!setup_)
             {
@@ -151,10 +184,48 @@ namespace ompl
                 throw std::runtime_error("Called solve on EIT* without setting up the state space first.");
             }
 
+            // If the graph currently does not have a goal state, we wait until we get one.
+            if (!graph_.hasGoalState())
+            {
+                graph_.updateStartAndGoalStates(terminationCondition, &pis_);
+            }
+
+            if (!graph_.hasStartState())
+            {
+                OMPL_WARN("%s: No solution can be found as no start states are available", name_.c_str());
+                status = ompl::base::PlannerStatus::StatusType::INVALID_START;
+                informAboutPlannerStatus(status);
+                return status;
+            }
+
+            // If the graph still doesn't have a goal after waiting there's nothing to solve.
+            if (!graph_.hasGoalState())
+            {
+                OMPL_WARN("%s: No solution can be found as no goal states are available", name_.c_str());
+                status = ompl::base::PlannerStatus::StatusType::INVALID_GOAL;
+                informAboutPlannerStatus(status);
+                return status;
+            }
+
+            OMPL_INFORM("%s: Searching for a solution to the given planning problem. The current best solution cost is "
+                        "%.4f",
+                        name_.c_str(), solutionCost_.value());
+
             // Iterate until stopped or objective is satisfied.
             while (!terminationCondition && !objective_->isSatisfied(solutionCost_))
             {
-                iterate();
+                iterate(terminationCondition);
+            }
+
+            // Someone might call ProblemDefinition::clearSolutionPaths() between invocations of Planner::sovle(), in
+            // which case previously found solutions are not registered with the problem definition anymore.
+            updateExactSolution();
+
+            // If there are no exact solutions registered in the problem definition and we're tracking approximate
+            // solutions, find the best vertex in the graph.
+            if (!pdef_->hasExactSolution() && trackApproximateSolutions_)
+            {
+                updateApproximateSolution();
             }
 
             // Return the appropriate planner status.
@@ -173,9 +244,14 @@ namespace ompl
             return solutionCost_;
         }
 
-        void EITstar::setNumSamplesPerBatch(std::size_t numSamples)
+        void EITstar::setBatchSize(unsigned int numSamples)
         {
-            numSamplesPerBatch_ = numSamples;
+            batchSize_ = numSamples;
+        }
+
+        unsigned int EITstar::getBatchSize() const
+        {
+            return batchSize_;
         }
 
         void EITstar::setInitialNumberOfSparseCollisionChecks(std::size_t numChecks)
@@ -188,6 +264,11 @@ namespace ompl
         void EITstar::setRadiusFactor(double factor)
         {
             graph_.setRadiusFactor(factor);
+        }
+
+        double EITstar::getRadiusFactor() const
+        {
+            return graph_.getRadiusFactor();
         }
 
         void EITstar::setSuboptimalityFactor(double factor)
@@ -215,6 +296,16 @@ namespace ompl
             return graph_.isPruningEnabled();
         }
 
+        void EITstar::trackApproximateSolutions(bool track)
+        {
+            trackApproximateSolutions_ = track;
+        }
+
+        bool EITstar::areApproximateSolutionsTracked() const
+        {
+            return trackApproximateSolutions_;
+        }
+
         void EITstar::setUseKNearest(bool useKNearest)
         {
             graph_.setUseKNearest(useKNearest);
@@ -223,6 +314,16 @@ namespace ompl
         bool EITstar::getUseKNearest() const
         {
             return graph_.getUseKNearest();
+        }
+
+        void EITstar::setMaxNumberOfGoals(unsigned int numberOfGoals)
+        {
+            graph_.setMaxNumberOfGoals(numberOfGoals);
+        }
+
+        unsigned int EITstar::getMaxNumberOfGoals() const
+        {
+            return graph_.getMaxNumberOfGoals();
         }
 
         std::vector<Edge> EITstar::getForwardQueue() const
@@ -288,21 +389,21 @@ namespace ompl
             Planner::getPlannerData(data);
 
             // Add the samples and their outgoing edges.
-            for (const auto &sample : graph_.getSamples())
+            for (const auto &state : graph_.getStates())
             {
                 // Add the state to the live states.
-                liveStates.insert(sample);
+                liveStates.insert(state);
 
                 // Add the state as a vertex.
-                data.addVertex(base::PlannerDataVertex(sample->raw(), sample->getId()));
+                data.addVertex(base::PlannerDataVertex(state->raw(), state->getId()));
 
                 // If the sample is in the forward tree, add the outgoing edges.
-                if (sample->hasForwardVertex())
+                if (state->hasForwardVertex())
                 {
-                    for (const auto &child : sample->asForwardVertex()->getChildren())
+                    for (const auto &child : state->asForwardVertex()->getChildren())
                     {
-                        data.addEdge(base::PlannerDataVertex(sample->asForwardVertex()->getState()->raw(),
-                                                             sample->asForwardVertex()->getState()->getId()),
+                        data.addEdge(base::PlannerDataVertex(state->asForwardVertex()->getState()->raw(),
+                                                             state->asForwardVertex()->getState()->getId()),
                                      base::PlannerDataVertex(child->getState()->raw(), child->getState()->getId()));
                     }
                 }
@@ -314,12 +415,13 @@ namespace ompl
             graph_.setLocalSeed(localSeed);
         }
 
-        void EITstar::iterate()
+        void EITstar::iterate(const ompl::base::PlannerTerminationCondition &terminationCondition)
         {
             // If this is the first iteration, populate the reverse queue.
             if (iteration_ == 0u)
             {
                 expandReverseRootsIntoReverseQueue();
+                phase_ = reverseQueue_->empty() ? Phase::IMPROVE_APPROXIMATION : Phase::REVERSE_SEARCH;
             }
 
             switch (phase_)
@@ -338,7 +440,7 @@ namespace ompl
                 {
                     reverseQueue_->clear();
                     forwardQueue_->clear();
-                    improveApproximation();
+                    improveApproximation(terminationCondition);
                     break;
                 }
                 default:
@@ -359,6 +461,7 @@ namespace ompl
 
             // Get the top edge from the queue.
             auto edge = forwardQueue_->pop(suboptimalityFactor_);
+            ++numProcessedEdges_;
 
             // Assert that the source of the edge has a forward vertex.
             assert(edge.source->hasForwardVertex());
@@ -450,7 +553,7 @@ namespace ompl
                                 // Update the solution if the vertex is a goal.
                                 if (graph_.isGoal(vertex->getState()))
                                 {
-                                    updateSolution(vertex->getState());
+                                    updateExactSolution(vertex->getState());
                                 }
                             }
 
@@ -484,7 +587,7 @@ namespace ompl
                             }
                             else  // It is the goal state, update the solution.
                             {
-                                updateSolution(edge.target);
+                                updateExactSolution(edge.target);
                             }
                         }
                     }
@@ -691,46 +794,82 @@ namespace ompl
             }
         }
 
-        void EITstar::improveApproximation()
+        void EITstar::improveApproximation(const ompl::base::PlannerTerminationCondition &terminationCondition)
         {
             // Add new states, also prunes states if enabled.
-            graph_.addStates(numSamplesPerBatch_);
-
-            // Reset the suboptimality factor.
-            suboptimalityFactor_ = std::numeric_limits<double>::infinity();
-
-            // Reset the reverse collision detection.
-            numSparseCollisionChecksCurrentLevel_ = initialNumSparseCollisionChecks_;
-            numSparseCollisionChecksPreviousLevel_ = 0u;
-
-            // Restart the reverse search.
-            reverseRoots_.clear();
-            reverseCost_ = objective_->infiniteCost();
-            for (const auto &goal : graph_.getGoalStates())
+            if (graph_.addStates(batchSize_, terminationCondition))
             {
-                goal->setCurrentCostToCome(objective_->infiniteCost());
-                goal->setAdmissibleCostToGo(objective_->identityCost());
-                goal->setEstimatedCostToGo(objective_->identityCost());
-                goal->setEstimatedEffortToGo(0u);
-                reverseRoots_.emplace_back(goal->asReverseVertex());
-                reverseQueue_->insert(expand(goal));
-            }
+                // Reset the suboptimality factor.
+                suboptimalityFactor_ = std::numeric_limits<double>::infinity();
 
-            // Clear the jit search edge cache.
-            jitSearchEdgeCache_.clear();
+                // Reset the reverse collision detection.
+                numSparseCollisionChecksCurrentLevel_ = initialNumSparseCollisionChecks_;
+                numSparseCollisionChecksPreviousLevel_ = 0u;
 
-            // If expanding the goal state actually produced edges, let's start the reverse search.
-            // Otherwise, we stay in the improve approximation phase.
-            if (!reverseQueue_->empty())
-            {
-                phase_ = Phase::REVERSE_SEARCH;
+                // Restart the reverse search.
+                reverseRoots_.clear();
+                reverseCost_ = objective_->infiniteCost();
+                for (const auto &goal : graph_.getGoalStates())
+                {
+                    goal->setCurrentCostToCome(objective_->infiniteCost());
+                    goal->setAdmissibleCostToGo(objective_->identityCost());
+                    goal->setEstimatedCostToGo(objective_->identityCost());
+                    goal->setEstimatedEffortToGo(0u);
+                    reverseRoots_.emplace_back(goal->asReverseVertex());
+                    reverseQueue_->insert(expand(goal));
+                }
 
-                // Update the search tag.
-                ++searchTag_;
+                // Clear the jit search edge cache.
+                jitSearchEdgeCache_.clear();
+
+                // If expanding the goal state actually produced edges, let's start the reverse search.
+                // Otherwise, we stay in the improve approximation phase.
+                if (!reverseQueue_->empty())
+                {
+                    phase_ = Phase::REVERSE_SEARCH;
+
+                    // Update the search tag.
+                    ++searchTag_;
+                }
             }
         }
 
-        void EITstar::updateSolution(const std::shared_ptr<eitstar::State> &goal)
+        void EITstar::updateExactSolution()
+        {
+            for (const auto &goal : graph_.getGoalStates())
+            {
+                if (goal->hasForwardVertex())
+                {
+                    updateExactSolution(goal);
+                }
+            }
+        }
+
+        void EITstar::updateApproximateSolution()
+        {
+            for (const auto &start : graph_.getStartStates())
+            {
+                start->asForwardVertex()->callOnBranch(
+                    [this](const std::shared_ptr<eitstar::State> &state) -> void { updateApproximateSolution(state); });
+            }
+        }
+
+        void EITstar::updateCurrentCostToCome(const std::shared_ptr<eitstar::State> &state)
+        {
+            if (state->hasForwardVertex())
+            {
+                auto forwardVertex = state->asForwardVertex();
+                state->setCurrentCostToCome(
+                    objective_->combineCosts(forwardVertex->getParent().lock()->getState()->getCurrentCostToCome(),
+                                             forwardVertex->getEdgeCost()));
+            }
+            else
+            {
+                state->setCurrentCostToCome(objective_->infiniteCost());
+            }
+        }
+
+        void EITstar::updateExactSolution(const std::shared_ptr<eitstar::State> &goal)
         {
             // Throw if the reverse root does not have a forward vertex.
             assert(goal->hasForwardVertex());
@@ -780,6 +919,30 @@ namespace ompl
             }
         }
 
+        void EITstar::updateApproximateSolution(const std::shared_ptr<eitstar::State> &state)
+        {
+            assert(trackApproximateSolutions_);
+            if (state->hasForwardVertex() || graph_.isStart(state))
+            {
+                const auto costToGoal = computeCostToGoToGoal(state);
+                if (objective_->isCostBetterThan(costToGoal, approximateSolutionCostToGoal_))
+                {
+                    approximateSolutionCost_ = state->getCurrentCostToCome();
+                    approximateSolutionCostToGoal_ = costToGoal;
+                }
+            }
+        }
+
+        ompl::base::Cost EITstar::computeCostToGoToGoal(const std::shared_ptr<eitstar::State> &state) const
+        {
+            auto bestCost = objective_->infiniteCost();
+            for (const auto &goal : graph_.getGoalStates())
+            {
+                bestCost = objective_->betterCost(bestCost, objective_->motionCost(state->raw(), goal->raw()));
+            }
+            return bestCost;
+        }
+
         void EITstar::increaseSparseCollisionDetectionResolutionAndRestartReverseSearch()
         {
             // Remember the number of collision checks on the previous level.
@@ -811,6 +974,84 @@ namespace ompl
             {
                 phase_ = Phase::IMPROVE_APPROXIMATION;
             }
+        }
+
+        void EITstar::informAboutNewSolution() const
+        {
+            OMPL_INFORM("%s (%u iterations): Found a new exact solution of cost %.4f. Sampled a total of %u states, %u "
+                        "of which were valid samples (%.1f \%). Processed %u edges, %u of which were collision checked "
+                        "(%.1f \%). The forward search tree has %u vertices. The reverse search tree has %u vertices.",
+                        name_.c_str(), iteration_, solutionCost_.value(), graph_.getNumberOfSampledStates(),
+                        graph_.getNumberOfValidSamples(),
+                        graph_.getNumberOfSampledStates() == 0u ?
+                            0.0 :
+                            100.0 * (static_cast<double>(graph_.getNumberOfValidSamples()) /
+                                     static_cast<double>(graph_.getNumberOfSampledStates())),
+                        numProcessedEdges_, numCollisionCheckedEdges_,
+                        numProcessedEdges_ == 0u ? 0.0 :
+                                                   100.0 * (static_cast<float>(numCollisionCheckedEdges_) /
+                                                            static_cast<float>(numProcessedEdges_)),
+                        countNumVerticesInForwardTree(), countNumVerticesInReverseTree());
+        }
+
+        void EITstar::informAboutPlannerStatus(ompl::base::PlannerStatus::StatusType status) const
+        {
+            switch (status)
+            {
+                case ompl::base::PlannerStatus::StatusType::EXACT_SOLUTION:
+                {
+                    OMPL_INFORM("%s (%u iterations): Found an exact solution of cost %.4f.", name_.c_str(), iteration_,
+                                solutionCost_.value());
+                    break;
+                }
+                case ompl::base::PlannerStatus::StatusType::APPROXIMATE_SOLUTION:
+                {
+                    OMPL_INFORM("%s (%u iterations): Did not find an exact solution, but found an approximate solution "
+                                "of cost %.4f which is %.4f away from a goal (in cost space).",
+                                name_.c_str(), iteration_, approximateSolutionCost_.value(),
+                                approximateSolutionCostToGoal_.value());
+                    break;
+                }
+                case ompl::base::PlannerStatus::StatusType::TIMEOUT:
+                {
+                    if (trackApproximateSolutions_)
+                    {
+                        OMPL_INFORM("%s (%u iterations): Did not find any solution.", name_.c_str(), iteration_);
+                    }
+                    else
+                    {
+                        OMPL_INFORM("%s (%u iterations): Did not find an exact solution, and tracking approximate "
+                                    "solutions is disabled.",
+                                    name_.c_str(), iteration_);
+                    }
+                    break;
+                }
+                case ompl::base::PlannerStatus::StatusType::UNKNOWN:
+                case ompl::base::PlannerStatus::StatusType::INVALID_START:
+                case ompl::base::PlannerStatus::StatusType::INVALID_GOAL:
+                case ompl::base::PlannerStatus::StatusType::UNRECOGNIZED_GOAL_TYPE:
+                case ompl::base::PlannerStatus::StatusType::CRASH:
+                case ompl::base::PlannerStatus::StatusType::ABORT:
+                case ompl::base::PlannerStatus::StatusType::TYPE_COUNT:
+                {
+                    OMPL_INFORM("%s (%u iterations): Unable to solve the given planning problem.", name_.c_str(),
+                                iteration_);
+                }
+            }
+        }
+
+        unsigned int EITstar::countNumVerticesInForwardTree() const
+        {
+            const auto states = graph_.getStates();
+            return std::count_if(states.cbegin(), states.cend(),
+                                 [](const auto &state) { return state->hasForwardVertex(); });
+        }
+
+        unsigned int EITstar::countNumVerticesInReverseTree() const
+        {
+            const auto states = graph_.getStates();
+            return std::count_if(states.cbegin(), states.cend(),
+                                 [](const auto &state) { return state->hasReverseVertex(); });
         }
 
         bool EITstar::couldImproveForwardPath(const Edge &edge) const
@@ -896,6 +1137,7 @@ namespace ompl
             // Ok, fine, we have to do work.
             else
             {
+                ++numCollisionCheckedEdges_;
                 if (motionValidator_->checkMotion(edge.source->raw(), edge.target->raw()))
                 {
                     // Whitelist this edge.
@@ -938,8 +1180,9 @@ namespace ompl
                    indices of checks:             1        2        3        4        5        6        7
                    order of testing:              4        2        5        1        6        3        7
 
-                   We create a queue that holds segments and always test the midpoint of the segments. We start with the
-                   outermost indices and then break the segment in half until the segment collapses to a single point:
+                   We create a queue that holds segments and always test the midpoint of the segments. We start with
+                the outermost indices and then break the segment in half until the segment collapses to a single
+                point:
 
                    1. indices = { (1, 7) }
                       current = (1, 7) -> test midpoint = 4 -> add (1, 3) and (5, 7) to queue
@@ -961,8 +1204,8 @@ namespace ompl
                 // The segment count is the number of checks on this level plus 1.
                 auto segmentCount = numSparseCollisionChecksCurrentLevel_ + 1u;
 
-                // If the segment cound is larger than what would be necessary we just do the full collision check which
-                // will whitelist the edge.
+                // If the segment cound is larger than what would be necessary we just do the full collision check
+                // which will whitelist the edge.
                 if (segmentCount >= space_->validSegmentCount(edge.source->raw(), edge.target->raw()))
                 {
                     return isValid(edge);
