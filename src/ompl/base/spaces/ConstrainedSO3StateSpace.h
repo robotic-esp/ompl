@@ -70,6 +70,8 @@ namespace ompl
 
         private:
             double maxRotation_{boost::math::constants::pi<double>()};
+
+            bool satisfiesConstraint(const std::array<double, 4u>& rotation) const;
         };
 
         /** \brief A state space representing SO(3). The internal
