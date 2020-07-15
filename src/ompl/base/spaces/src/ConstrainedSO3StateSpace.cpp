@@ -43,9 +43,6 @@
 #include <boost/math/constants/constants.hpp>
 #include <boost/assert.hpp>
 
-#include <Eigen/Core>
-#include <Eigen/Geometry>
-
 #include "ompl/tools/config/MagicConstants.h"
 #include "ompl/util/Exception.h"
 
@@ -71,54 +68,13 @@ namespace ompl
             return maxRotation_;
         }
 
-        namespace
-        {
-            std::array<double, 4u> rotate(const std::array<double, 4u> &point, const std::array<double, 4u> &quaternion)
-            {
-                const Eigen::Map<const Eigen::Quaternion<double>> p(point.data());
-                const Eigen::Map<const Eigen::Quaternion<double>> q(quaternion.data());
-                const auto res = q * p * q.inverse();
-                return {res.x(), res.y(), res.z(), res.w()};
-            }
-
-            double angleBetween(const std::array<double, 4u>& vector1, const std::array<double, 4u>& vector2) {
-                const Eigen::Map<const Eigen::Vector3d> v1(vector1.data() + 1, 3u);
-                const Eigen::Map<const Eigen::Vector3d> v2(vector2.data() + 1, 3u);
-                return std::acos(v1.dot(v2));
-            }
-        }  // namespace
-
-        bool ConstrainedSO3StateSampler::satisfiesConstraint(const std::array<double, 4u>& quaternion) const
-        {
-            constexpr std::array<double, 4u> x {0.0, 1.0, 0.0, 0.0};
-            constexpr std::array<double, 4u> y {0.0, 0.0, 1.0, 0.0};
-            constexpr std::array<double, 4u> z {0.0, 0.0, 0.0, 1.0};
-
-            const auto xprime = rotate(x, quaternion);
-            if (angleBetween(x, xprime) > maxRotation_) {
-                return false;
-            }
-
-            const auto yprime = rotate(y, quaternion);
-            if (angleBetween(y, yprime) > maxRotation_) {
-                return false;
-            }
-
-            const auto zprime = rotate(z, quaternion);
-            if (angleBetween(z, zprime) > maxRotation_) {
-                return false;
-            }
-
-            return true;
-        }
-
         void ConstrainedSO3StateSampler::sampleUniform(State *state)
         {
             std::array<double, 4u> quaternion;
             do
             {
                 rng_.quaternion(quaternion.data());
-            } while (!satisfiesConstraint(quaternion));
+            } while (2.0 * std::acos(quaternion[3]) > maxRotation_);
 
             auto so3state = state->as<SO3StateSpace::StateType>();
             so3state->x = quaternion[0u];
