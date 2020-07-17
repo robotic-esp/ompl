@@ -895,6 +895,11 @@ namespace ompl
             //   2. The new goal has a better cost to come than the old goal
             if (objective_->isCostBetterThan(goal->getCurrentCostToCome(), solutionCost_))
             {
+                if (!std::isfinite(suboptimalityFactor_))
+                {
+                    suboptimalityFactor_ = 1.0;
+                }
+
                 // Update the best cost.
                 solutionCost_ = goal->getCurrentCostToCome();
 
@@ -928,10 +933,6 @@ namespace ompl
                 solution.setPlannerName(name_);
                 solution.setOptimized(objective_, solutionCost_, objective_->isSatisfied(solutionCost_));
                 problem_->addSolutionPath(solution);
-
-                // Set a new suboptimality factor.
-                suboptimalityFactor_ =
-                    solutionCost_.value() / forwardQueue_->getLowerBoundOnOptimalSolutionCost().value();
             }
         }
 
