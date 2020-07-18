@@ -43,6 +43,7 @@
 #include "ompl/datastructures/DynamicSSSP.h"
 
 #include <fstream>
+#include <limits>
 
 namespace ompl
 {
@@ -297,7 +298,7 @@ namespace ompl
             /** \brief Number of iterations the algorithm performed */
             unsigned int iterations_{0u};
             /** \brief Best cost found so far by algorithm */
-            double bestCost_;
+            double bestCost_{std::numeric_limits<double>::infinity()};
         };
     }  // namespace geometric
 }  // namespace ompl
