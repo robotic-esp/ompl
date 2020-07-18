@@ -370,7 +370,7 @@ namespace ompl
             /** \brief Objective cost function for PRM graph edges */
             base::OptimizationObjectivePtr opt_;
 
-            base::Cost bestCost_{std::numeric_limits<double>::quiet_NaN()};
+            base::Cost bestCost_{std::numeric_limits<double>::infinity()};
 
             unsigned long int iterations_{0};
         };
