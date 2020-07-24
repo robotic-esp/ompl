@@ -61,17 +61,6 @@ namespace ompl
 
             /** \brief Not yet implemented. */
             void sampleGaussian(State *state, const State *mean, double stdDev) override;
-
-            /** \brief Set the max rotation. */
-            void setMaxRotation(double maxRotation);
-
-            /** \brief Get the max rotation. */
-            double getMaxRotation() const;
-
-        private:
-            double maxRotation_{boost::math::constants::pi<double>()};
-
-            bool satisfiesConstraint(const std::array<double, 4u>& rotation) const;
         };
 
         /** \brief A state space representing SO(3). The internal
@@ -96,6 +85,8 @@ namespace ompl
             double getMaxRotation() const;
 
             StateSamplerPtr allocDefaultStateSampler() const override;
+
+            bool satisfiesBounds(const State *state) const override;
 
         private:
             double maxRotation_{boost::math::constants::pi<double>()};

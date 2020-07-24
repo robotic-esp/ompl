@@ -56,49 +56,46 @@ namespace ompl
         {
         }
 
-        /** \brief Set the max rotation. */
-        void ConstrainedSO3StateSampler::setMaxRotation(double maxRotation)
-        {
-            maxRotation_ = maxRotation;
-        }
-
-        /** \brief Get the max rotation. */
-        double ConstrainedSO3StateSampler::getMaxRotation() const
-        {
-            return maxRotation_;
-        }
-
         void ConstrainedSO3StateSampler::sampleUniform(State *state)
         {
-            std::array<double, 4u> quaternion;
             do
             {
-                rng_.quaternion(quaternion.data());
-            } while (2.0 * std::acos(quaternion[3]) > maxRotation_);
+                SO3StateSampler::sampleUniform(state);
+            } while (!space_->satisfiesBounds(state));
 
-            auto so3state = state->as<SO3StateSpace::StateType>();
-            so3state->x = quaternion[0u];
-            so3state->y = quaternion[1u];
-            so3state->z = quaternion[2u];
-            so3state->w = quaternion[3u];
+            OMPL_DEBUG("Uniform sampled rotation of: %.2f <= %.2f", 2.0 * std::acos(state->as<ConstrainedSO3StateSpace::StateType>()->w), space_->as<ConstrainedSO3StateSpace>()->getMaxRotation());
         }
 
-        void ConstrainedSO3StateSampler::sampleUniformNear(State * /* state */, const State * /* near */,
-                                                           const double /* distance */)
+        void ConstrainedSO3StateSampler::sampleUniformNear(State *state, const State *near,
+                                                           const double distance)
         {
-            throw ompl::Exception("Currently not implemented.");
+            do
+            {
+                SO3StateSampler::sampleUniformNear(state, near, distance);
+            } while (!space_->satisfiesBounds(state));
+
+            OMPL_DEBUG("Near sampled rotation of: %.2f <= %.2f", 2.0 * std::acos(state->as<ConstrainedSO3StateSpace::StateType>()->w), space_->as<ConstrainedSO3StateSpace>()->getMaxRotation());
         }
 
-        void ConstrainedSO3StateSampler::sampleGaussian(State * /* state */, const State * /* mean */,
-                                                        const double /* stdDev */)
+        void ConstrainedSO3StateSampler::sampleGaussian(State *state, const State *mean,
+                                                        const double stdDev)
         {
-            throw ompl::Exception("Currently not implemented.");
+            do
+            {
+                SO3StateSampler::sampleGaussian(state, mean, stdDev);
+            } while (!space_->satisfiesBounds(state));
+
+            OMPL_DEBUG("Gaussian sampled rotation of: %.2f <= %.2f", 2.0 * std::acos(state->as<ConstrainedSO3StateSpace::StateType>()->w), space_->as<ConstrainedSO3StateSpace>()->getMaxRotation());
+        }
+
+        bool ConstrainedSO3StateSpace::satisfiesBounds(const State *state) const
+        {
+            return (2.0 * std::acos(state->as<ConstrainedSO3StateSpace::StateType>()->w) <= maxRotation_);
         }
 
         StateSamplerPtr ConstrainedSO3StateSpace::allocDefaultStateSampler() const
         {
             auto sampler = std::make_shared<ConstrainedSO3StateSampler>(this);
-            sampler->setMaxRotation(maxRotation_);
             return sampler;
         }
 
