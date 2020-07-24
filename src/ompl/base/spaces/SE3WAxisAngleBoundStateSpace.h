@@ -34,19 +34,19 @@
 
 /* Author: Marlin Strub */
 
-#ifndef OMPL_BASE_SPACES_SE3_STATE_SPACE_
-#define OMPL_BASE_SPACES_SE3_STATE_SPACE_
+#ifndef OMPL_BASE_SPACES_SE3_W_AXIS_ANGLE_BOUND_STATE_SPACE_
+#define OMPL_BASE_SPACES_SE3_W_AXIS_ANGLE_BOUND_STATE_SPACE_
 
 #include "ompl/base/StateSpace.h"
 #include "ompl/base/spaces/RealVectorStateSpace.h"
-#include "ompl/base/spaces/ConstrainedSO3StateSpace.h"
+#include "ompl/base/spaces/SO3WAxisAngleBoundStateSpace.h"
 
 namespace ompl
 {
     namespace base
     {
-        /** \brief A state space representing a constrained SE(3) */
-        class ConstrainedSE3StateSpace : public CompoundStateSpace
+        /** \brief A state space representing SE(3) with a rotation bound defined by axis angle. */
+        class SE3WAxisAngleBoundStateSpace : public CompoundStateSpace
         {
         public:
             /** \brief A state in SE(3): position = (x, y, z), quaternion = (x, y, z, w) */
@@ -74,15 +74,15 @@ namespace ompl
                 }
 
                 /** \brief Get the rotation component of the state */
-                const SO3StateSpace::StateType &rotation() const
+                const SO3WAxisAngleBoundStateSpace::StateType &rotation() const
                 {
-                    return *as<SO3StateSpace::StateType>(1);
+                    return *as<SO3WAxisAngleBoundStateSpace::StateType>(1);
                 }
 
                 /** \brief Get the rotation component of the state and allow changing it as well */
-                SO3StateSpace::StateType &rotation()
+                SO3WAxisAngleBoundStateSpace::StateType &rotation()
                 {
-                    return *as<SO3StateSpace::StateType>(1);
+                    return *as<SO3WAxisAngleBoundStateSpace::StateType>(1);
                 }
 
                 /** \brief Set the X component of the state */
@@ -112,16 +112,16 @@ namespace ompl
                 }
             };
 
-            ConstrainedSE3StateSpace()
+            SE3WAxisAngleBoundStateSpace()
             {
-                setName("ConstrainedSE3" + getName());
+                setName("SE3WAxisAngleBound" + getName());
                 type_ = STATE_SPACE_SE3;
                 addSubspace(std::make_shared<RealVectorStateSpace>(3), 1.0);
-                addSubspace(std::make_shared<ConstrainedSO3StateSpace>(), 1.0);
+                addSubspace(std::make_shared<SO3WAxisAngleBoundStateSpace>(), 1.0);
                 lock();
             }
 
-            ~ConstrainedSE3StateSpace() override = default;
+            ~SE3WAxisAngleBoundStateSpace() override = default;
 
             /** \copydoc RealVectorStateSpace::setBounds() */
             void setBounds(const RealVectorBounds &bounds)
@@ -138,13 +138,13 @@ namespace ompl
             /** Set the max rotation. */
             void setMaxRotation(double rotation)
             {
-                as<ConstrainedSO3StateSpace>(1)->setMaxRotation(rotation);
+                as<SO3WAxisAngleBoundStateSpace>(1)->setMaxRotation(rotation);
             }
 
             /** Get the max rotation. */
             double getMaxRotation() const
             {
-                return as<ConstrainedSO3StateSpace>(1)->getMaxRotation();
+                return as<SO3WAxisAngleBoundStateSpace>(1)->getMaxRotation();
             }
 
             State *allocState() const override;

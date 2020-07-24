@@ -34,7 +34,7 @@
 
 /* Author: Marlin Strub */
 
-#include "ompl/base/spaces/ConstrainedSO3StateSpace.h"
+#include "ompl/base/spaces/SO3WAxisAngleBoundStateSpace.h"
 
 #include <algorithm>
 #include <limits>
@@ -52,59 +52,53 @@ namespace ompl
 {
     namespace base
     {
-        ConstrainedSO3StateSampler::ConstrainedSO3StateSampler(const StateSpace *space) : SO3StateSampler(space)
+        SO3WAxisAngleBoundStateSampler::SO3WAxisAngleBoundStateSampler(const StateSpace *space) : SO3StateSampler(space)
         {
         }
 
-        void ConstrainedSO3StateSampler::sampleUniform(State *state)
+        void SO3WAxisAngleBoundStateSampler::sampleUniform(State *state)
         {
             do
             {
                 SO3StateSampler::sampleUniform(state);
             } while (!space_->satisfiesBounds(state));
-
-            OMPL_DEBUG("Uniform sampled rotation of: %.2f <= %.2f", 2.0 * std::acos(state->as<ConstrainedSO3StateSpace::StateType>()->w), space_->as<ConstrainedSO3StateSpace>()->getMaxRotation());
         }
 
-        void ConstrainedSO3StateSampler::sampleUniformNear(State *state, const State *near,
+        void SO3WAxisAngleBoundStateSampler::sampleUniformNear(State *state, const State *near,
                                                            const double distance)
         {
             do
             {
                 SO3StateSampler::sampleUniformNear(state, near, distance);
             } while (!space_->satisfiesBounds(state));
-
-            OMPL_DEBUG("Near sampled rotation of: %.2f <= %.2f", 2.0 * std::acos(state->as<ConstrainedSO3StateSpace::StateType>()->w), space_->as<ConstrainedSO3StateSpace>()->getMaxRotation());
         }
 
-        void ConstrainedSO3StateSampler::sampleGaussian(State *state, const State *mean,
+        void SO3WAxisAngleBoundStateSampler::sampleGaussian(State *state, const State *mean,
                                                         const double stdDev)
         {
             do
             {
                 SO3StateSampler::sampleGaussian(state, mean, stdDev);
             } while (!space_->satisfiesBounds(state));
-
-            OMPL_DEBUG("Gaussian sampled rotation of: %.2f <= %.2f", 2.0 * std::acos(state->as<ConstrainedSO3StateSpace::StateType>()->w), space_->as<ConstrainedSO3StateSpace>()->getMaxRotation());
         }
 
-        bool ConstrainedSO3StateSpace::satisfiesBounds(const State *state) const
+        bool SO3WAxisAngleBoundStateSpace::satisfiesBounds(const State *state) const
         {
-            return (2.0 * std::acos(state->as<ConstrainedSO3StateSpace::StateType>()->w) <= maxRotation_);
+            return (2.0 * std::acos(state->as<SO3WAxisAngleBoundStateSpace::StateType>()->w) <= maxRotation_);
         }
 
-        StateSamplerPtr ConstrainedSO3StateSpace::allocDefaultStateSampler() const
+        StateSamplerPtr SO3WAxisAngleBoundStateSpace::allocDefaultStateSampler() const
         {
-            auto sampler = std::make_shared<ConstrainedSO3StateSampler>(this);
+            auto sampler = std::make_shared<SO3WAxisAngleBoundStateSampler>(this);
             return sampler;
         }
 
-        void ConstrainedSO3StateSpace::setMaxRotation(double maxRotation)
+        void SO3WAxisAngleBoundStateSpace::setMaxRotation(double maxRotation)
         {
             maxRotation_ = maxRotation;
         }
 
-        double ConstrainedSO3StateSpace::getMaxRotation() const
+        double SO3WAxisAngleBoundStateSpace::getMaxRotation() const
         {
             return maxRotation_;
         }
