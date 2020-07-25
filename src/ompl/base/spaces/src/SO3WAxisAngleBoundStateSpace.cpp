@@ -67,6 +67,7 @@ namespace ompl
         void SO3WAxisAngleBoundStateSampler::sampleUniformNear(State *state, const State *near,
                                                            const double distance)
         {
+            assert(space_->satisfiesBounds(near));
             do
             {
                 SO3StateSampler::sampleUniformNear(state, near, distance);
@@ -76,6 +77,7 @@ namespace ompl
         void SO3WAxisAngleBoundStateSampler::sampleGaussian(State *state, const State *mean,
                                                         const double stdDev)
         {
+            assert(space_->satisfiesBounds(mean));
             do
             {
                 SO3StateSampler::sampleGaussian(state, mean, stdDev);
