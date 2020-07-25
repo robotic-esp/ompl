@@ -89,8 +89,8 @@ namespace ompl
             declareParam<bool>("use_graph_pruning", this, &AITstar::enablePruning, &AITstar::isPruningEnabled, "0,1");
             declareParam<bool>("find_approximate_solutions", this, &AITstar::trackApproximateSolutions,
                                &AITstar::areApproximateSolutionsTracked, "0,1");
-            declareParam<unsigned int>("max_num_initial_goals", this, &AITstar::setMaxNumberOfGoals,
-                                       &AITstar::getMaxNumberOfGoals, "1:1:1000");
+            declareParam<unsigned int>("max_num_initial_goals", this, &AITstar::setMaxNumberOfInitialGoals,
+                                       &AITstar::getMaxNumberOfInitialGoals, "1:1:1000");
             declareParam<bool>("repair_reverse_search", this, &AITstar::setRepairReverseSearch, &AITstar::getRepairReverseSearch, "0,1");
 
             // Register the progress properties.
@@ -359,14 +359,14 @@ namespace ompl
             return graph_.getUseKNearest();
         }
 
-        void AITstar::setMaxNumberOfGoals(unsigned int numberOfGoals)
+        void AITstar::setMaxNumberOfInitialGoals(unsigned int numberOfGoals)
         {
-            graph_.setMaxNumberOfGoals(numberOfGoals);
+            graph_.setMaxNumberOfInitialGoals(numberOfGoals);
         }
 
-        unsigned int AITstar::getMaxNumberOfGoals() const
+        unsigned int AITstar::getMaxNumberOfInitialGoals() const
         {
-            return graph_.getMaxNumberOfGoals();
+            return graph_.getMaxNumberOfInitialGoals();
         }
 
         void AITstar::setRepairReverseSearch(bool repairReverseSearch)
