@@ -148,6 +148,9 @@ namespace ompl
             /** \brief Enable LPA* repair of reverse search. */
             void setRepairReverseSearch(bool repairReverseSearch);
 
+            /** \brief Get whether the reverse search is repaired using LPA*. */
+            bool getRepairReverseSearch() const;
+
             /** \brief Get the edge queue. */
             std::vector<aitstar::Edge> getEdgesInQueue() const;
 
