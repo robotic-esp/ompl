@@ -34,8 +34,8 @@
 
 /* Author: Marlin Strub */
 
-#ifndef OMPL_BASE_SPACES_CONSTRAINED_SO3_STATE_SPACE_
-#define OMPL_BASE_SPACES_CONSTRAINED_SO3_STATE_SPACE_
+#ifndef OMPL_BASE_SPACES_SO3_W_AXIS_ANGLE_BOUND_STATE_SPACE_
+#define OMPL_BASE_SPACES_SO3_W_AXIS_ANGLE_BOUND_STATE_SPACE_
 
 #include "ompl/base/StateSpace.h"
 #include "ompl/base/spaces/SO3StateSpace.h"
@@ -46,12 +46,12 @@ namespace ompl
 {
     namespace base
     {
-        /** \brief State space sampler for SO(3), using quaternion representation  */
-        class ConstrainedSO3StateSampler : public SO3StateSampler
+        /** \brief State space sampler for SO(3) with a rotation bound defined by axis angle. */
+        class SO3WAxisAngleBoundStateSampler : public SO3StateSampler
         {
         public:
             /** \brief Constructor */
-            ConstrainedSO3StateSampler(const StateSpace *space);
+            SO3WAxisAngleBoundStateSampler(const StateSpace *space);
 
             /** \brief Sample uniformly. */
             void sampleUniform(State *state) override;
@@ -61,33 +61,19 @@ namespace ompl
 
             /** \brief Not yet implemented. */
             void sampleGaussian(State *state, const State *mean, double stdDev) override;
-
-            /** \brief Set the max rotation. */
-            void setMaxRotation(double maxRotation);
-
-            /** \brief Get the max rotation. */
-            double getMaxRotation() const;
-
-        private:
-            double maxRotation_{boost::math::constants::pi<double>()};
-
-            bool satisfiesConstraint(const std::array<double, 4u>& rotation) const;
         };
 
-        /** \brief A state space representing SO(3). The internal
-            representation is done with quaternions. The distance
-            between states is the angle between quaternions and
-            interpolation is done with slerp. */
-        class ConstrainedSO3StateSpace : public SO3StateSpace
+        /** \brief A state space representing SO(3) with a rotation bound defined by axis angle. */
+        class SO3WAxisAngleBoundStateSpace : public SO3StateSpace
         {
         public:
-            ConstrainedSO3StateSpace()
+            SO3WAxisAngleBoundStateSpace()
             {
-                setName("ConstrainedSO3" + getName());
+                setName("SO3WAxisAngleBound" + getName());
                 type_ = STATE_SPACE_SO3;
             }
 
-            ~ConstrainedSO3StateSpace() override = default;
+            ~SO3WAxisAngleBoundStateSpace() override = default;
 
             /** \brief Set the max rotation. */
             void setMaxRotation(double maxRotation);
@@ -96,6 +82,8 @@ namespace ompl
             double getMaxRotation() const;
 
             StateSamplerPtr allocDefaultStateSampler() const override;
+
+            bool satisfiesBounds(const State *state) const override;
 
         private:
             double maxRotation_{boost::math::constants::pi<double>()};
