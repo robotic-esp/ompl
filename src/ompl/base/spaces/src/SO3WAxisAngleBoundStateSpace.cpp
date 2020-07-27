@@ -34,7 +34,7 @@
 
 /* Author: Marlin Strub */
 
-#include "ompl/base/spaces/ConstrainedSO3StateSpace.h"
+#include "ompl/base/spaces/SO3WAxisAngleBoundStateSpace.h"
 
 #include <algorithm>
 #include <limits>
@@ -52,62 +52,55 @@ namespace ompl
 {
     namespace base
     {
-        ConstrainedSO3StateSampler::ConstrainedSO3StateSampler(const StateSpace *space) : SO3StateSampler(space)
+        SO3WAxisAngleBoundStateSampler::SO3WAxisAngleBoundStateSampler(const StateSpace *space) : SO3StateSampler(space)
         {
         }
 
-        /** \brief Set the max rotation. */
-        void ConstrainedSO3StateSampler::setMaxRotation(double maxRotation)
+        void SO3WAxisAngleBoundStateSampler::sampleUniform(State *state)
         {
-            maxRotation_ = maxRotation;
-        }
-
-        /** \brief Get the max rotation. */
-        double ConstrainedSO3StateSampler::getMaxRotation() const
-        {
-            return maxRotation_;
-        }
-
-        void ConstrainedSO3StateSampler::sampleUniform(State *state)
-        {
-            std::array<double, 4u> quaternion;
             do
             {
-                rng_.quaternion(quaternion.data());
-            } while (2.0 * std::acos(quaternion[3]) > maxRotation_);
-
-            auto so3state = state->as<SO3StateSpace::StateType>();
-            so3state->x = quaternion[0u];
-            so3state->y = quaternion[1u];
-            so3state->z = quaternion[2u];
-            so3state->w = quaternion[3u];
+                SO3StateSampler::sampleUniform(state);
+            } while (!space_->satisfiesBounds(state));
         }
 
-        void ConstrainedSO3StateSampler::sampleUniformNear(State * /* state */, const State * /* near */,
-                                                           const double /* distance */)
+        void SO3WAxisAngleBoundStateSampler::sampleUniformNear(State *state, const State *near,
+                                                           const double distance)
         {
-            throw ompl::Exception("Currently not implemented.");
+            assert(space_->satisfiesBounds(near));
+            do
+            {
+                SO3StateSampler::sampleUniformNear(state, near, distance);
+            } while (!space_->satisfiesBounds(state));
         }
 
-        void ConstrainedSO3StateSampler::sampleGaussian(State * /* state */, const State * /* mean */,
-                                                        const double /* stdDev */)
+        void SO3WAxisAngleBoundStateSampler::sampleGaussian(State *state, const State *mean,
+                                                        const double stdDev)
         {
-            throw ompl::Exception("Currently not implemented.");
+            assert(space_->satisfiesBounds(mean));
+            do
+            {
+                SO3StateSampler::sampleGaussian(state, mean, stdDev);
+            } while (!space_->satisfiesBounds(state));
         }
 
-        StateSamplerPtr ConstrainedSO3StateSpace::allocDefaultStateSampler() const
+        bool SO3WAxisAngleBoundStateSpace::satisfiesBounds(const State *state) const
         {
-            auto sampler = std::make_shared<ConstrainedSO3StateSampler>(this);
-            sampler->setMaxRotation(maxRotation_);
+            return (2.0 * std::acos(state->as<SO3WAxisAngleBoundStateSpace::StateType>()->w) <= maxRotation_);
+        }
+
+        StateSamplerPtr SO3WAxisAngleBoundStateSpace::allocDefaultStateSampler() const
+        {
+            auto sampler = std::make_shared<SO3WAxisAngleBoundStateSampler>(this);
             return sampler;
         }
 
-        void ConstrainedSO3StateSpace::setMaxRotation(double maxRotation)
+        void SO3WAxisAngleBoundStateSpace::setMaxRotation(double maxRotation)
         {
             maxRotation_ = maxRotation;
         }
 
-        double ConstrainedSO3StateSpace::getMaxRotation() const
+        double SO3WAxisAngleBoundStateSpace::getMaxRotation() const
         {
             return maxRotation_;
         }

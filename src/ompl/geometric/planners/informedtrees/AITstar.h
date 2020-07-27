@@ -140,13 +140,16 @@ namespace ompl
             bool getUseKNearest() const;
 
             /** \brief Set the maximum number of goals AIT* will sample from sampleable goal regions. */
-            void setMaxNumberOfGoals(unsigned int numberOfGoals);
+            void setMaxNumberOfInitialGoals(unsigned int numberOfGoals);
 
             /** \brief Get the maximum number of goals AIT* will sample from sampleable goal regions. */
-            unsigned int getMaxNumberOfGoals() const;
+            unsigned int getMaxNumberOfInitialGoals() const;
 
             /** \brief Enable LPA* repair of reverse search. */
             void setRepairReverseSearch(bool repairReverseSearch);
+
+            /** \brief Get whether the reverse search is repaired using LPA*. */
+            bool getRepairReverseSearch() const;
 
             /** \brief Get the edge queue. */
             std::vector<aitstar::Edge> getEdgesInQueue() const;

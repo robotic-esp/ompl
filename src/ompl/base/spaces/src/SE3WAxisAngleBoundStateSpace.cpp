@@ -34,16 +34,16 @@
 
 /* Author: Marlin Strub */
 
-#include "ompl/base/spaces/ConstrainedSE3StateSpace.h"
+#include "ompl/base/spaces/SE3WAxisAngleBoundStateSpace.h"
 
-ompl::base::State *ompl::base::ConstrainedSE3StateSpace::allocState() const
+ompl::base::State *ompl::base::SE3WAxisAngleBoundStateSpace::allocState() const
 {
     auto *state = new StateType();
     allocStateComponents(state);
     return state;
 }
 
-void ompl::base::ConstrainedSE3StateSpace::freeState(State *state) const
+void ompl::base::SE3WAxisAngleBoundStateSpace::freeState(State *state) const
 {
     CompoundStateSpace::freeState(state);
 }
