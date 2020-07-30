@@ -552,7 +552,7 @@ namespace ompl
             double ImplicitGraph::computeConnectionRadius(std::size_t numSamples) const
             {
                 // Define the dimension as a helper variable.
-                auto dimension = static_cast<double>(spaceInformation_->getStateDimension());
+                const auto dimension = static_cast<double>(spaceInformation_->getStateDimension());
 
                 // Compute the RRT* factor.
                 return rewireFactor_ *
@@ -565,7 +565,15 @@ namespace ompl
                 // // Compute the FMT* factor.
                 // return 2.0 * rewireFactor_ *
                 //        std::pow((1.0 / dimension) *
-                //                     (sampler_->getInformedMeasure(*solutionCost_.lock()) /
+                //                     (sampler_->getInformedMeasure(solutionCost_) /
+                //                      unitNBallMeasure(spaceInformation_->getStateDimension())) *
+                //                     (std::log(static_cast<double>(numSamples)) / numSamples),
+                //                 1.0 / dimension);
+
+                // PRM*
+                // return rewireFactor_ * 2.0 *
+                //        std::pow((1.0 + 1.0 / dimension) *
+                //                     (sampler_->getInformedMeasure(solutionCost_) /
                 //                      unitNBallMeasure(spaceInformation_->getStateDimension())) *
                 //                     (std::log(static_cast<double>(numSamples)) / numSamples),
                 //                 1.0 / dimension);

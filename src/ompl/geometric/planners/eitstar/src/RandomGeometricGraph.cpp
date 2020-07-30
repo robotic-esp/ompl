@@ -724,6 +724,7 @@ namespace ompl
             double RandomGeometricGraph::computeRadius(std::size_t numInformedSamples) const
             {
                 // Compute and return the radius. Note to self: double / int -> double. You looked it up. It's fine.
+
                 // RRT*
                 return radiusFactor_ *
                        std::pow(2.0 * (1.0 + 1.0 / dimension_) *
@@ -735,6 +736,13 @@ namespace ompl
                 // return 2.0 * radiusFactor_ *
                 //        std::pow((1.0 / dimension_) * (sampler_->getInformedMeasure(solutionCost_) /
                 //        unitNBallMeasure_) *
+                //                     (std::log(static_cast<double>(numInformedSamples)) / numInformedSamples),
+                //                 1.0 / dimension_);
+
+                // PRM*
+                // return radiusFactor_ * 2.0 *
+                //        std::pow((1.0 + 1.0 / dimension_) *
+                //                     (sampler_->getInformedMeasure(solutionCost_) / unitNBallMeasure_) *
                 //                     (std::log(static_cast<double>(numInformedSamples)) / numInformedSamples),
                 //                 1.0 / dimension_);
             }
