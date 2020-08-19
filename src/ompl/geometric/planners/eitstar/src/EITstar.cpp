@@ -693,7 +693,7 @@ namespace ompl
             reverseQueue_->pop();
 
             // Register the expansion of its parent.
-            edge.source->asReverseVertex()->registerExpansionInReverseSearch(searchTag_);
+            edge.source->asReverseVertex()->registerExpansionInReverseSearch(reverseSearchTag_);
 
             // Simply expand the child vertex if the edge is already in the reverse tree, and the child has not been
             // expanded yet.
@@ -809,7 +809,7 @@ namespace ompl
 
         void EITstar::improveApproximation(const ompl::base::PlannerTerminationCondition &terminationCondition)
         {
-            // Add new states, also prunes states if enabled.
+            // Add new states, also prunes states if enabled. The method returns true if all states have been added.
             if (graph_.addStates(batchSize_, terminationCondition))
             {
                 // Reset the suboptimality factor.
@@ -845,7 +845,7 @@ namespace ompl
                     phase_ = Phase::REVERSE_SEARCH;
 
                     // Update the search tag.
-                    ++searchTag_;
+                    ++reverseSearchTag_;
                 }
             }
         }
@@ -933,6 +933,13 @@ namespace ompl
                 solution.setPlannerName(name_);
                 solution.setOptimized(objective_, solutionCost_, objective_->isSatisfied(solutionCost_));
                 problem_->addSolutionPath(solution);
+
+                // If we found this solution with a suboptimality factor greater than 1, set the factor to one now.
+                // Empirically, this results in faster convergence, see associated publication for more info.
+                if (suboptimalityFactor_ > 1.0)
+                {
+                    suboptimalityFactor_ = 1.0;
+                }
             }
         }
 
@@ -991,6 +998,8 @@ namespace ompl
             {
                 phase_ = Phase::IMPROVE_APPROXIMATION;
             }
+
+            ++reverseSearchTag_;
         }
 
         void EITstar::informAboutNewSolution() const
@@ -1349,7 +1358,7 @@ namespace ompl
 
         bool EITstar::isClosed(const std::shared_ptr<Vertex> &vertex) const
         {
-            return vertex->getExpandTag() == searchTag_;
+            return vertex->getExpandTag() == reverseSearchTag_;
         }
 
         bool EITstar::doAllVerticesHaveAdmissibleCostToGo(const eitstar::Edge &edge) const
