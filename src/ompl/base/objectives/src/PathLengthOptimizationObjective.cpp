@@ -75,7 +75,9 @@ ompl::base::InformedSamplerPtr ompl::base::PathLengthOptimizationObjective::allo
 {
     // Try to use a direct sampler if the goal is of approriate type, use a rejection sampler otherwise.
     const auto goalType = probDefn->getGoal()->getType();
-    if (goalType == ompl::base::GoalType::GOAL_STATE || goalType == ompl::base::GoalType::GOAL_STATES)
+    if (goalType == ompl::base::GoalType::GOAL_STATE
+        || goalType == ompl::base::GoalType::GOAL_STATES
+        || goalType == ompl::base::GoalType::GOAL_LAZY_SAMPLES)
     {
         // If OMPL was compiled with Eigen, a direct version is available, if not a rejection-based technique can be
         // used.

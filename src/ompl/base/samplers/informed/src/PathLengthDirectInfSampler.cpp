@@ -70,10 +70,11 @@ namespace ompl
             std::vector<State *> goalStates;
 
             if (!probDefn_->getGoal()->hasType(ompl::base::GOAL_STATE) &&
-                !probDefn_->getGoal()->hasType(ompl::base::GOAL_STATES))
+                !probDefn_->getGoal()->hasType(ompl::base::GOAL_STATES) &&
+                !probDefn_->getGoal()->hasType(ompl::base::GOAL_LAZY_SAMPLES))
             {
                 throw Exception("PathLengthDirectInfSampler: The direct path-length informed sampler currently only "
-                                "supports goals of type GOAL_STATE and GOAL_STATES.");
+                                "supports goals of type GOAL_STATE, GOAL_STATES, and GOAL_LAZY_SAMPLES.");
             }
 
             /// Note: We don't check that there is a cost-to-go heuristic set in the optimization objective, as this
