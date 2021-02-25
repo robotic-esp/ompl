@@ -554,13 +554,13 @@ namespace ompl
                 // Define the dimension as a helper variable.
                 const auto dimension = static_cast<double>(spaceInformation_->getStateDimension());
 
-                // Compute the RRT* factor.
-                return rewireFactor_ *
-                       std::pow(2.0 * (1.0 + 1.0 / dimension) *
-                                    (sampler_->getInformedMeasure(solutionCost_) /
-                                     unitNBallMeasure(spaceInformation_->getStateDimension())) *
-                                    (std::log(static_cast<double>(numSamples)) / static_cast<double>(numSamples)),
-                                1.0 / dimension);
+                // // Compute the RRT* factor.
+                // return rewireFactor_ *
+                //        std::pow(2.0 * (1.0 + 1.0 / dimension) *
+                //                     (sampler_->getInformedMeasure(solutionCost_) /
+                //                      unitNBallMeasure(spaceInformation_->getStateDimension())) *
+                //                     (std::log(static_cast<double>(numSamples)) / static_cast<double>(numSamples)),
+                //                 1.0 / dimension);
 
                 // // Compute the FMT* factor.
                 // return 2.0 * rewireFactor_ *
@@ -571,12 +571,12 @@ namespace ompl
                 //                 1.0 / dimension);
 
                 // PRM*
-                // return rewireFactor_ * 2.0 *
-                //        std::pow((1.0 + 1.0 / dimension) *
-                //                     (sampler_->getInformedMeasure(solutionCost_) /
-                //                      unitNBallMeasure(spaceInformation_->getStateDimension())) *
-                //                     (std::log(static_cast<double>(numSamples)) / numSamples),
-                //                 1.0 / dimension);
+                return rewireFactor_ * 2.0 *
+                       std::pow((1.0 + 1.0 / dimension) *
+                                    (sampler_->getInformedMeasure(solutionCost_) /
+                                     unitNBallMeasure(spaceInformation_->getStateDimension())) *
+                                    (std::log(static_cast<double>(numSamples)) / numSamples),
+                                1.0 / dimension);
             }
 
             std::size_t ImplicitGraph::computeNumberOfNeighbors(std::size_t numSamples) const
