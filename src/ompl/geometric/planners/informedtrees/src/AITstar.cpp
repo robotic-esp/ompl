@@ -34,6 +34,8 @@
 
 // Authors: Marlin Strub
 
+#include "ompl/geometric/planners/informedtrees/AITstar.h"
+
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -41,35 +43,22 @@
 #include <boost/range/adaptor/reversed.hpp>
 
 #include "ompl/base/objectives/PathLengthOptimizationObjective.h"
-#include "ompl/geometric/planners/informedtrees/AITstar.h"
 #include "ompl/util/Console.h"
 
 using namespace std::string_literals;
+using namespace ompl::geometric::aitstar;
 
 namespace ompl
 {
     namespace geometric
     {
+        
         AITstar::AITstar(const ompl::base::SpaceInformationPtr &spaceInformation)
           : ompl::base::Planner(spaceInformation, "AITstar")
           , solutionCost_()
           , graph_(solutionCost_)
-          , forwardQueue_([this](const aitstar::Edge &lhs, const aitstar::Edge &rhs) {
-              return std::lexicographical_compare(lhs.getSortKey().cbegin(), lhs.getSortKey().cend(),
-                                                  rhs.getSortKey().cbegin(), rhs.getSortKey().cend(),
-                                                  [this](const ompl::base::Cost &a, const ompl::base::Cost &b) {
-                                                      return objective_->isCostBetterThan(a, b);
-                                                  });
-          })
-          , reverseQueue_(
-                [this](const std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<aitstar::Vertex>> &lhs,
-                       const std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<aitstar::Vertex>> &rhs) {
-                    return std::lexicographical_compare(lhs.first.cbegin(), lhs.first.cend(), rhs.first.cbegin(),
-                                                        rhs.first.cend(),
-                                                        [this](const ompl::base::Cost &a, const ompl::base::Cost &b) {
-                                                            return objective_->isCostBetterThan(a, b);
-                                                        });
-                })
+          , forwardQueue_([this](const auto &lhs, const auto &rhs) { return isEdgeBetter(lhs, rhs); })
+          , reverseQueue_([this](const auto &lhs, const auto &rhs) { return isVertexBetter(lhs, rhs); })
         {
             // Specify AIT*'s planner specs.
             specs_.recognizedGoal = base::GOAL_SAMPLEABLE_REGION;
@@ -163,11 +152,8 @@ namespace ompl
             solutionCost_ = objective_->infiniteCost();
             approximateSolutionCost_ = objective_->infiniteCost();
             approximateSolutionCostToGoal_ = objective_->infiniteCost();
-            edgesToBeInserted_.clear();
             numIterations_ = 0u;
-            performReverseSearchIteration_ = true;
             isForwardSearchStartedOnBatch_ = false;
-            forwardQueueMustBeRebuilt_ = false;
             Planner::clear();
         }
 
@@ -209,7 +195,8 @@ namespace ompl
                 return status;
             }
 
-            OMPL_INFORM("%s: Searching for a solution to the given planning problem. The current best solution cost is "
+            OMPL_INFORM("%s: Searching for a solution to the given planning problem. The current best solution "
+                        "cost is "
                         "%.4f",
                         name_.c_str(), solutionCost_.value());
 
@@ -219,8 +206,8 @@ namespace ompl
                 iterate(terminationCondition);
             }
 
-            // Someone might call ProblemDefinition::clearSolutionPaths() between invokations of Planner::solve(), in
-            // which case previously found solutions are not registered with the problem definition anymore.
+            // Someone might call ProblemDefinition::clearSolutionPaths() between invokations of Planner::solve(),
+            // in which case previously found solutions are not registered with the problem definition anymore.
             updateExactSolution();
 
             // If there are no exact solutions registered in the problem definition and we're tracking approximate
@@ -258,11 +245,10 @@ namespace ompl
 
         void AITstar::getPlannerData(base::PlannerData &data) const
         {
-            // base::PlannerDataVertex takes a raw pointer to a state. I want to guarantee, that the state lives as long
-            // as the program lives.
-            static std::set<
-                std::shared_ptr<aitstar::Vertex>,
-                std::function<bool(const std::shared_ptr<aitstar::Vertex> &, const std::shared_ptr<aitstar::Vertex> &)>>
+            // base::PlannerDataVertex takes a raw pointer to a state. I want to guarantee, that the state lives as
+            // long as the program lives.
+            static std::set<std::shared_ptr<Vertex>,
+                            std::function<bool(const std::shared_ptr<Vertex> &, const std::shared_ptr<Vertex> &)>>
                 liveStates([](const auto &lhs, const auto &rhs) { return lhs->getId() < rhs->getId(); });
 
             // Fill the planner progress properties.
@@ -382,7 +368,7 @@ namespace ompl
         void AITstar::rebuildForwardQueue()
         {
             // Get all edges from the queue.
-            std::vector<aitstar::Edge> edges;
+            std::vector<Edge> edges;
             forwardQueue_.getContent(edges);
 
             // Rebuilding the queue invalidates the incoming and outgoing lookup.
@@ -395,27 +381,31 @@ namespace ompl
             // Clear the queue.
             forwardQueue_.clear();
 
-            // Insert all edges into the queue if they connect vertices that have been processed, otherwise store them
-            // in the cache of edges that are to be inserted.
-            if (haveAllVerticesBeenProcessed(edges))
+            // Insert all edges into the queue if they connect vertices that have been processed, otherwise store
+            // them in the cache of edges that are to be inserted.
+            for (auto &edge : edges)
             {
-                for (auto &edge : edges)
-                {
-                    insertOrUpdateInForwardQueue(aitstar::Edge(edge.getParent(), edge.getChild(),
-                                                               computeSortKey(edge.getParent(), edge.getChild())));
-                }
+                insertOrUpdateInForwardQueue(
+                    Edge(edge.getParent(), edge.getChild(), computeSortKey(edge.getParent(), edge.getChild())));
             }
-            else
+        }
+
+        void AITstar::clearForwardQueue()
+        {
+            std::vector<Edge> forwardQueue;
+            forwardQueue_.getContent(forwardQueue);
+            for (const auto &element : forwardQueue)
             {
-                edgesToBeInserted_ = edges;
-                performReverseSearchIteration_ = true;
+                element.getChild()->resetForwardQueueIncomingLookup();
+                element.getParent()->resetForwardQueueOutgoingLookup();
             }
+            forwardQueue_.clear();
         }
 
         void AITstar::rebuildReverseQueue()
         {
             // Rebuilding the reverse queue invalidates the reverse queue pointers.
-            std::vector<KeyVertexPair> content;
+            std::vector<aitstar::KeyVertexPair> content;
             reverseQueue_.getContent(content);
             for (auto &element : content)
             {
@@ -426,18 +416,32 @@ namespace ompl
             for (auto &vertex : content)
             {
                 // Compute the sort key for the vertex queue.
-                std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<aitstar::Vertex>> element(
+                std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<Vertex>> element(
                     computeSortKey(vertex.second), vertex.second);
                 auto reverseQueuePointer = reverseQueue_.insert(element);
                 element.second->setReverseQueuePointer(reverseQueuePointer);
             }
         }
 
+        void AITstar::clearReverseQueue()
+        {
+            std::vector<aitstar::KeyVertexPair> reverseQueue;
+            reverseQueue_.getContent(reverseQueue);
+            for (const auto &element : reverseQueue)
+            {
+                element.second->resetReverseQueuePointer();
+            }
+            reverseQueue_.clear();
+        }
+
         void AITstar::informAboutNewSolution() const
         {
-            OMPL_INFORM("%s (%u iterations): Found a new exact solution of cost %.4f. Sampled a total of %u states, %u "
-                        "of which were valid samples (%.1f \%). Processed %u edges, %u of which were collision checked "
-                        "(%.1f \%). The forward search tree has %u vertices. The reverse search tree has %u vertices.",
+            OMPL_INFORM("%s (%u iterations): Found a new exact solution of cost %.4f. Sampled a total of %u "
+                        "states, %u "
+                        "of which were valid samples (%.1f \%). Processed %u edges, %u of which were collision "
+                        "checked "
+                        "(%.1f \%). The forward search tree has %u vertices. The reverse search tree has %u "
+                        "vertices.",
                         name_.c_str(), numIterations_, solutionCost_.value(), graph_.getNumberOfSampledStates(),
                         graph_.getNumberOfValidSamples(),
                         graph_.getNumberOfSampledStates() == 0u ?
@@ -463,7 +467,8 @@ namespace ompl
                 }
                 case ompl::base::PlannerStatus::StatusType::APPROXIMATE_SOLUTION:
                 {
-                    OMPL_INFORM("%s (%u iterations): Did not find an exact solution, but found an approximate solution "
+                    OMPL_INFORM("%s (%u iterations): Did not find an exact solution, but found an approximate "
+                                "solution "
                                 "of cost %.4f which is %.4f away from a goal (in cost space).",
                                 name_.c_str(), numIterations_, approximateSolutionCost_.value(),
                                 approximateSolutionCostToGoal_.value());
@@ -512,21 +517,88 @@ namespace ompl
                 countNumVerticesInForwardTree(), countNumVerticesInReverseTree());
         }
 
-        std::vector<aitstar::Edge> AITstar::getEdgesInQueue() const
+        void AITstar::insertGoalVerticesInReverseQueue()
         {
-            std::vector<aitstar::Edge> edges;
+            for (const auto &goal : graph_.getGoalVertices())
+            {
+                // Set the cost to come from the goal to infinity and the expanded cost to identity.
+                // This seems wrong, but check Koenig et al. 2004 (www.doi.org/10.1016/j.artint.2003.12.001).
+                goal->setExpandedCostToComeFromGoal(objective_->infiniteCost());
+                goal->setCostToComeFromGoal(objective_->identityCost());
+
+                // Create an element for the queue.
+                aitstar::KeyVertexPair element({computeCostToGoToStartHeuristic(goal), objective_->identityCost()},
+                                               goal);
+
+                // Insert the element into the queue and set the corresponding pointer.
+                auto reverseQueuePointer = reverseQueue_.insert(element);
+                goal->setReverseQueuePointer(reverseQueuePointer);
+            }
+        }
+
+        void AITstar::expandStartVerticesIntoForwardQueue()
+        {
+            for (const auto &start : graph_.getStartVertices())
+            {
+                start->setCostToComeFromStart(objective_->identityCost());
+                insertOrUpdateInForwardQueue(getOutgoingEdges(start));
+            }
+        }
+
+        bool AITstar::continueReverseSearch() const
+        {
+            // Never continue the reverse search if the reverse of forward queue is empty.
+            if (reverseQueue_.empty() || forwardQueue_.empty())
+            {
+                return false;
+            }
+
+            // Get references to the best edge and vertex in the queues.
+            const auto &bestEdge = forwardQueue_.top()->data;
+            const auto &bestVertex = reverseQueue_.top()->data;
+
+            // The reverse search must be continued if the best edge has an inconsistent child state or if the best
+            // vertex can potentially lead to a better solution than the best edge.
+            return !bestEdge.getChild()->isConsistent() ||
+                   objective_->isCostBetterThan(bestVertex.first[0u], bestEdge.getSortKey()[0u]);
+        }
+
+        bool AITstar::continueForwardSearch()
+        {
+            // Never continue the forward search if its queue is empty.
+            if (forwardQueue_.empty())
+            {
+                return false;
+            }
+
+            // If the best edge in the forward queue has a potential total solution cost of infinity, the forward
+            // search does not need to be continued. This can happen if the reverse search did not reach any target
+            // state of the edges in the forward queue.
+            const auto &bestEdgeCost = forwardQueue_.top()->data.getSortKey()[0u];
+            if (!objective_->isFinite(bestEdgeCost))
+            {
+                return false;
+            }
+
+            // The forward search can be stopped once the resolution optimal solution has been found.
+            return objective_->isCostBetterThan(bestEdgeCost, solutionCost_);
+        }
+
+        std::vector<Edge> AITstar::getEdgesInQueue() const
+        {
+            std::vector<Edge> edges;
             forwardQueue_.getContent(edges);
             return edges;
         }
 
-        std::vector<std::shared_ptr<aitstar::Vertex>> AITstar::getVerticesInQueue() const
+        std::vector<std::shared_ptr<Vertex>> AITstar::getVerticesInQueue() const
         {
             // Get the content from the queue.
-            std::vector<std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<aitstar::Vertex>>> content;
+            std::vector<std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<Vertex>>> content;
             reverseQueue_.getContent(content);
 
             // Return the vertices.
-            std::vector<std::shared_ptr<aitstar::Vertex>> vertices;
+            std::vector<std::shared_ptr<Vertex>> vertices;
             for (const auto &pair : content)
             {
                 vertices.emplace_back(pair.second);
@@ -534,7 +606,7 @@ namespace ompl
             return vertices;
         }
 
-        aitstar::Edge AITstar::getNextEdgeInQueue() const
+        Edge AITstar::getNextEdgeInQueue() const
         {
             if (!forwardQueue_.empty())
             {
@@ -544,7 +616,7 @@ namespace ompl
             return {};
         }
 
-        std::shared_ptr<aitstar::Vertex> AITstar::getNextVertexInQueue() const
+        std::shared_ptr<Vertex> AITstar::getNextVertexInQueue() const
         {
             if (!reverseQueue_.empty())
             {
@@ -554,14 +626,14 @@ namespace ompl
             return {};
         }
 
-        std::vector<std::shared_ptr<aitstar::Vertex>> AITstar::getVerticesInReverseSearchTree() const
+        std::vector<std::shared_ptr<Vertex>> AITstar::getVerticesInReverseSearchTree() const
         {
             // Get all vertices from the graph.
             auto vertices = graph_.getVertices();
 
             // Erase the vertices that are not in the reverse search tree.
             vertices.erase(std::remove_if(vertices.begin(), vertices.end(),
-                                          [this](const std::shared_ptr<aitstar::Vertex> &vertex) {
+                                          [this](const std::shared_ptr<Vertex> &vertex) {
                                               return !graph_.isGoal(vertex) && !vertex->hasReverseParent();
                                           }),
                            vertices.end());
@@ -575,410 +647,289 @@ namespace ompl
 
         void AITstar::iterate(const ompl::base::PlannerTerminationCondition &terminationCondition)
         {
-            // If this is the first time solve is called, populate the reverse queue.
+            // If this is the first time solve is called, populate the queues.
             if (numIterations_ == 0u)
             {
-                for (const auto &goal : graph_.getGoalVertices())
-                {
-                    // Set the cost to come from the goal to identity cost.
-                    goal->setCostToComeFromGoal(objective_->identityCost());
-
-                    // Create an element for the queue.
-                    std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<aitstar::Vertex>> element(
-                        std::array<ompl::base::Cost, 2u>(
-                            {computeCostToGoToStartHeuristic(goal), ompl::base::Cost(0.0)}),
-                        goal);
-
-                    // Insert the element into the queue and set the corresponding pointer.
-                    auto reverseQueuePointer = reverseQueue_.insert(element);
-                    goal->setReverseQueuePointer(reverseQueuePointer);
-                }
+                insertGoalVerticesInReverseQueue();
+                expandStartVerticesIntoForwardQueue();
             }
 
             // Keep track of the number of iterations.
             ++numIterations_;
 
-            // If the algorithm is in a state that requires performing a reverse search iteration, try to perform one.
-            if (performReverseSearchIteration_)
+            // If the reverse search needs to be continued, do that now.
+            if (continueReverseSearch())
             {
-                // If the reverse queue is not empty, perform a reverse search iteration.
-                if (!reverseQueue_.empty())
-                {
-                    performReverseSearchIteration();
-                }
-                else
-                {
-                    // If the reverse queue is empty, check if there are forward edges to be inserted.
-                    // Only insert forward edges that connect vertices that have been processed with the reverse search.
-                    // If the reverse queue is empty and a vertex has not been processed with the reverse queue, it
-                    // means that it's not in the same connected component of the RGG as the goal. We can not reach the
-                    // goal from this vertex and therefore this edge can be disregarded.
-                    for (const auto &edge : edgesToBeInserted_)
-                    {
-                        if (haveAllVerticesBeenProcessed(edge))
-                        {
-                            insertOrUpdateInForwardQueue(aitstar::Edge(
-                                edge.getParent(), edge.getChild(), computeSortKey(edge.getParent(), edge.getChild())));
-                        }
-                    }
-                    edgesToBeInserted_.clear();
-                    performReverseSearchIteration_ = false;
-                    forwardQueueMustBeRebuilt_ = true;
-                }
-            }
+                iterateReverseSearch();
+            }  // If the reverse search is suspended, check whether the forward search needs to be continued.
+            else if (continueForwardSearch())
+            {
+                iterateForwardSearch();
+            }  // If neither the forward search nor the reverse search needs to be continued, add more samples.
             else
             {
-                if (!isForwardSearchStartedOnBatch_)
+                // Add new samples to the graph, respecting the termination condition.
+                if (graph_.addSamples(batchSize_, terminationCondition))
                 {
-                    // Remember that we've started the forward search on this batch.
-                    isForwardSearchStartedOnBatch_ = true;
-
-                    // If no start vertex has finite cost to come from the goal, there is no need to start the
-                    // forward search.
-                    std::vector<aitstar::Edge> outgoingStartEdges;
-                    for (const auto &start : graph_.getStartVertices())
+                    // Remove useless samples from the graph.
+                    if (isPruningEnabled_)
                     {
-                        if (objective_->isFinite(start->getCostToComeFromGoal()))
-                        {
-                            // Add the outgoing edges of all start vertices to the queue.
-                            for (const auto &start : graph_.getStartVertices())
-                            {
-                                const auto outgoingEdges = getOutgoingEdges(start);
-                                outgoingStartEdges.insert(outgoingStartEdges.end(), outgoingEdges.begin(),
-                                                          outgoingEdges.end());
-                            }
-                        }
+                        graph_.prune();
                     }
-                    // If all vertices of the outgoing start edges have been processed, insert the edges into the
-                    // forward queue. If not, remember that they are to be inserted.
-                    if (haveAllVerticesBeenProcessed(outgoingStartEdges))
+
+                    // Add new start and goal states if necessary.
+                    if (pis_.haveMoreStartStates() || pis_.haveMoreGoalStates())
                     {
-                        for (const auto &edge : outgoingStartEdges)
-                        {
-                            insertOrUpdateInForwardQueue(edge);
-                        }
+                        graph_.updateStartAndGoalStates(ompl::base::plannerAlwaysTerminatingCondition(), &pis_);
                     }
-                    else
-                    {
-                        assert(edgesToBeInserted_.empty());
-                        edgesToBeInserted_ = outgoingStartEdges;
-                        performReverseSearchIteration_ = true;
-                    }
-                }
-                else if (forwardQueueMustBeRebuilt_)
-                {
-                    // Rebuild the forwared queue if necessary.
-                    rebuildForwardQueue();
-                    forwardQueueMustBeRebuilt_ = false;
-                }
-                else if (!forwardQueue_.empty())
-                {
-                    // If the forward queue is not empty, perform a forward search iteration.
-                    performForwardSearchIteration();
-                }
-                else  // We should not perform a reverse search iteration and the forward queue is empty. Add more
-                      // samples.
-                {
-                    // Add new samples to the graph.
-                    if (graph_.addSamples(batchSize_, terminationCondition))
-                    {
-                        // Clear the reverse queue.
-                        std::vector<std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<aitstar::Vertex>>>
-                            reverseQueue;
-                        reverseQueue_.getContent(reverseQueue);
-                        for (const auto &element : reverseQueue)
-                        {
-                            element.second->resetReverseQueuePointer();
-                        }
-                        reverseQueue_.clear();
 
-                        // Clear the forward queue.
-                        std::vector<aitstar::Edge> forwardQueue;
-                        forwardQueue_.getContent(forwardQueue);
-                        for (const auto &element : forwardQueue)
-                        {
-                            element.getChild()->resetForwardQueueIncomingLookup();
-                            element.getParent()->resetForwardQueueOutgoingLookup();
-                        }
-                        forwardQueue_.clear();
-
-                        // Clear the cache of edges to be inserted.
-                        edgesToBeInserted_.clear();
-
-                        // Remove useless samples from the graph.
-                        if (isPruningEnabled_)
-                        {
-                            graph_.prune();
-                        }
-
-                        // Add new start and goal states if necessary.
-                        if (pis_.haveMoreStartStates() || pis_.haveMoreGoalStates())
-                        {
-                            graph_.updateStartAndGoalStates(ompl::base::plannerAlwaysTerminatingCondition(), &pis_);
-                        }
-
-                        // Add the goals to the reverse queue.
-                        for (const auto &goal : graph_.getGoalVertices())
-                        {
-                            goal->setCostToComeFromGoal(objective_->identityCost());
-                            auto reverseQueuePointer = reverseQueue_.insert(std::make_pair(computeSortKey(goal), goal));
-                            goal->setReverseQueuePointer(reverseQueuePointer);
-                        }
-
-                        // This is a new batch, so the search hasn't been started.
-                        isForwardSearchStartedOnBatch_ = false;
-
-                        // We have to update the heuristic. Start with a reverse iteration.
-                        performReverseSearchIteration_ = true;
-                    }
+                    // Reinitialize the queues.
+                    clearReverseQueue();
+                    clearForwardQueue();
+                    insertGoalVerticesInReverseQueue();
+                    expandStartVerticesIntoForwardQueue();
                 }
             }
         }
 
-        void AITstar::performForwardSearchIteration()
+        void AITstar::iterateForwardSearch()
         {
-            // We should never perform a forward search iteration while there are still edges to be inserted.
-            assert(edgesToBeInserted_.empty());
+            assert(!forwardQueue_.empty());
 
             // Get the most promising edge.
-            auto &edge = forwardQueue_.top()->data;
-            auto parent = edge.getParent();
-            auto child = edge.getChild();
-
-            // Make sure the edge is sane
-            assert(child->hasReverseParent() || graph_.isGoal(child));
-            assert(parent->hasReverseParent() || graph_.isGoal(parent));
-
-            // Remove the edge from the incoming and outgoing lookups.
+            auto parent = forwardQueue_.top()->data.getParent();
+            auto child = forwardQueue_.top()->data.getChild();
             child->removeFromForwardQueueIncomingLookup(forwardQueue_.top());
             parent->removeFromForwardQueueOutgoingLookup(forwardQueue_.top());
-
-            // Remove the edge from the queue.
             forwardQueue_.pop();
+
+            // Ensure that the child is consistent and the parent isn't the goal.
+            assert(child->isConsistent());
+            assert(!graph_.isGoal(parent));
 
             // This counts as processing an edge.
             ++numProcessedEdges_;
 
-            // Register that an outgoing edge of the parent has been popped from the queue. This means that the parent
-            // has optimal cost-to-come for the current approximation.
-            parent->registerPoppedOutgoingEdgeDuringForwardSearch();
-
-            // If this is edge can not possibly improve our solution, the search is done.
-            auto edgeCost = objective_->motionCostHeuristic(parent->getState(), child->getState());
-            auto parentCostToGoToGoal = objective_->combineCosts(edgeCost, child->getCostToGoToGoal());
-            auto pathThroughEdgeCost = objective_->combineCosts(parent->getCostToComeFromStart(), parentCostToGoToGoal);
-            if (!objective_->isCostBetterThan(pathThroughEdgeCost, solutionCost_))
+            // If this edge is already in the forward tree, it's a freeby.
+            if (child->hasForwardParent() && child->getForwardParent()->getId() == parent->getId())
             {
-                if (objective_->isFinite(pathThroughEdgeCost) ||
-                    !objective_->isFinite(computeBestCostToComeFromGoalOfAnyStart()))
-                {
-                    std::vector<aitstar::Edge> edges;
-                    forwardQueue_.getContent(edges);
-                    for (const auto &edge : edges)
-                    {
-                        edge.getChild()->resetForwardQueueIncomingLookup();
-                        edge.getParent()->resetForwardQueueOutgoingLookup();
-                    }
-                    forwardQueue_.clear();
-                }
-                else
-                {
-                    performReverseSearchIteration_ = true;
-                }
-            }  // This edge can improve the solution. Check if it's already in the reverse search tree.
-            else if (child->hasForwardParent() && child->getForwardParent()->getId() == parent->getId())
-            {
-                // This is a freebie, just insert the outgoing edges of the child.
-                auto edges = getOutgoingEdges(child);
-                if (haveAllVerticesBeenProcessed(edges))
-                {
-                    for (const auto &edge : edges)
-                    {
-                        insertOrUpdateInForwardQueue(edge);
-                    }
-                }
-                else
-                {
-                    edgesToBeInserted_ = edges;
-                    performReverseSearchIteration_ = true;
-                    return;
-                }
-            }  // This edge can improve the solution and is not already in the reverse search tree.
-            else if (objective_->isCostBetterThan(child->getCostToComeFromStart(),
-                                                  objective_->combineCosts(parent->getCostToComeFromStart(),
-                                                                           objective_->motionCostHeuristic(
-                                                                               parent->getState(), child->getState()))))
-            {
-                // If the edge cannot improve the cost to come to the child, we're done processing it.
+                insertOrUpdateInForwardQueue(getOutgoingEdges(child));
                 return;
-            }  // The edge can possibly improve the solution and the path to the child. Let's check it for collision.
-            else if (parent->isWhitelistedAsChild(child) ||
-                     motionValidator_->checkMotion(parent->getState(), child->getState()))
+            }  // Check if this edge can possibly improve the current search tree.
+            else if (objective_->isCostBetterThan(objective_->combineCosts(parent->getCostToComeFromStart(),
+                                                                           objective_->motionCostHeuristic(
+                                                                               parent->getState(), child->getState())),
+                                                  child->getCostToComeFromStart()))
             {
-                // Remember that this is a good edge.
-                if (!parent->isWhitelistedAsChild(child))
+                // The edge can possibly improve the solution and the path to the child. Let's check it for
+                // collision.
+                if (parent->isWhitelistedAsChild(child) ||
+                    motionValidator_->checkMotion(parent->getState(), child->getState()))
                 {
-                    parent->whitelistAsChild(child);
-                    numEdgeCollisionChecks_++;
-                }
-
-                // Compute the edge cost.
-                auto edgeCost = objective_->motionCost(parent->getState(), child->getState());
-
-                // Check if the edge can improve the cost to come to the child.
-                if (objective_->isCostBetterThan(objective_->combineCosts(parent->getCostToComeFromStart(), edgeCost),
-                                                 child->getCostToComeFromStart()))
-                {
-                    // If the child has already been expanded during the current forward search, something's fishy.
-                    assert(!child->hasHadOutgoingEdgePoppedDuringCurrentForwardSearch());
-
-                    // Rewire the child.
-                    child->setForwardParent(parent, edgeCost);
-
-                    // Add it to the children of the parent.
-                    parent->addToForwardChildren(child);
-
-                    // Share the good news with the whole branch.
-                    child->updateCostOfForwardBranch();
-
-                    // Check if the solution can benefit from this.
-                    updateExactSolution();
-
-                    // If we don't have an exact solution but are tracking approximate solutions, see if the child is
-                    // the best approximate solution so far.
-                    if (!pdef_->hasExactSolution() && trackApproximateSolutions_)
+                    // Remember that this is a good edge.
+                    if (!parent->isWhitelistedAsChild(child))
                     {
-                        updateApproximateSolution(child);
+                        parent->whitelistAsChild(child);
+                        numEdgeCollisionChecks_++;
                     }
 
-                    // Insert the child's outgoing edges into the queue.
-                    auto edges = getOutgoingEdges(child);
-                    if (haveAllVerticesBeenProcessed(edges))
+                    // Compute the edge cost.
+                    const auto edgeCost = objective_->motionCost(parent->getState(), child->getState());
+
+                    // Check if the edge can improve the cost to come to the child.
+                    if (objective_->isCostBetterThan(
+                            objective_->combineCosts(parent->getCostToComeFromStart(), edgeCost),
+                            child->getCostToComeFromStart()))
                     {
-                        for (const auto &edge : edges)
-                        {
-                            insertOrUpdateInForwardQueue(edge);
-                        }
-                    }
-                    else
-                    {
-                        edgesToBeInserted_ = edges;
-                        performReverseSearchIteration_ = true;
-                        return;
+                        // Rewire the child.
+                        child->setForwardParent(parent, edgeCost);
+
+                        // Add it to the children of the parent.
+                        parent->addToForwardChildren(child);
+
+                        // Share the good news with the whole branch.
+                        child->updateCostOfForwardBranch();
+
+                        // Check if the solution can benefit from this.
+                        updateSolution(child);
+
+                        // Insert the child's outgoing edges into the queue.
+                        insertOrUpdateInForwardQueue(getOutgoingEdges(child));
                     }
                 }
-            }
-            else
-            {
-                // This child should be blacklisted.
-                parent->blacklistAsChild(child);
-
-                // If desired, now is the time to repair the reverse search.
-                if (repairReverseSearch_)
+                else  // This edge is in collision
                 {
+                    // The edge should be blacklisted in both directions.
+                    parent->blacklistAsChild(child);
+                    child->blacklistAsChild(parent);
+
+                    // Repair the reverse search if this edge was in the reverse search tree.
                     if (parent->hasReverseParent() && parent->getReverseParent()->getId() == child->getId())
                     {
-                        // The parent was connected to the child through an invalid edge.
-                        parent->setCostToComeFromGoal(objective_->infiniteCost());
-                        parent->setExpandedCostToComeFromGoal(objective_->infiniteCost());
-                        parent->resetReverseParent();
-                        child->removeFromReverseChildren(parent->getId());
-
-                        // This also affects all children of this vertex.
+                        // The parent was connected to the child through an invalid edge, so we need to invalidate
+                        // the branch of the reverse search tree starting from the parent.
                         invalidateCostToComeFromGoalOfReverseBranch(parent);
 
-                        // If any of these children are in the reverse queue, their sort key is outdated.
-                        rebuildReverseQueue();
-
                         // The parent's cost-to-come needs to be updated. This places children in open.
-                        reverseSearchUpdateVertex(parent);
-
-                        // If the reverse queue is empty, this means we have to add new samples.
-                        if (reverseQueue_.empty())
-                        {
-                            std::vector<aitstar::Edge> edges;
-                            forwardQueue_.getContent(edges);
-                            for (const auto &edge : edges)
-                            {
-                                edge.getChild()->resetForwardQueueIncomingLookup();
-                                edge.getParent()->resetForwardQueueOutgoingLookup();
-                            }
-                            forwardQueue_.clear();
-                        }
-                        else
-                        {
-                            performReverseSearchIteration_ = true;
-                        }
+                        updateReverseSearchVertex(parent);
                     }
                 }
             }
         }
 
-        void AITstar::performReverseSearchIteration()
+        void AITstar::iterateReverseSearch()
         {
             assert(!reverseQueue_.empty());
 
-            // Get the most promising vertex.
+            // Get the most promising vertex and remove it from the queue.
             auto vertex = reverseQueue_.top()->data.second;
-
-            // Remove it from the queue.
             reverseQueue_.pop();
             vertex->resetReverseQueuePointer();
 
             // The open queue should not contain consistent vertices.
-            assert((!objective_->isFinite(vertex->getCostToComeFromGoal()) &&
-                    !objective_->isFinite(vertex->getExpandedCostToComeFromGoal())) ||
-                   (!objective_->isCostEquivalentTo(vertex->getCostToComeFromGoal(),
-                                                    vertex->getExpandedCostToComeFromGoal())));
+            assert(!vertex->isConsistent());
 
-            // If any goal is underconsistent, we need to continue.
-            bool underconsistentStart{false};
-            for (const auto &start : graph_.getStartVertices())
-            {
-                if (objective_->isCostBetterThan(start->getExpandedCostToComeFromGoal(),
-                                                 start->getCostToComeFromGoal()))
-                {
-                    underconsistentStart = true;
-                    break;
-                }
-            }
-
-            // If there is currently no reason to think this vertex can be on an optimal path, clear the queue.
-            if (edgesToBeInserted_.empty() &&
-                ((!underconsistentStart &&
-                  !objective_->isCostBetterThan(objective_->combineCosts(vertex->getCostToComeFromGoal(),
-                                                                         computeCostToGoToStartHeuristic(vertex)),
-                                                solutionCost_)) ||
-                 objective_->isCostBetterThan(
-                     ompl::base::Cost(computeBestCostToComeFromGoalOfAnyStart().value() + 1e-6), solutionCost_)))
-            {
-                // This invalidates the cost-to-go estimate of the forward search.
-                performReverseSearchIteration_ = false;
-                forwardQueueMustBeRebuilt_ = true;
-                vertex->registerExpansionDuringReverseSearch();
-                return;
-            }
-
-            // Check if the vertex is overconsistent. g(s) < v(s).
+            // Check if the vertex is underconsistent. g[s] < v[s].
             if (objective_->isCostBetterThan(vertex->getCostToComeFromGoal(), vertex->getExpandedCostToComeFromGoal()))
             {
-                // Register the expansion of this vertex.
-                vertex->registerExpansionDuringReverseSearch();
+                // Make the vertex consistent and update the vertex.
+                vertex->setExpandedCostToComeFromGoal(vertex->getCostToComeFromGoal());
+                updateReverseSearchNeighbors(vertex);
             }
             else
             {
-                // Register the expansion of this vertex.
-                vertex->registerExpansionDuringReverseSearch();
+                // Make the vertex overconsistent.
                 vertex->setExpandedCostToComeFromGoal(objective_->infiniteCost());
-                reverseSearchUpdateVertex(vertex);
+
+                // Update the vertex and its neighbors.
+                updateReverseSearchVertex(vertex);
+                updateReverseSearchNeighbors(vertex);
+            }
+        }
+
+        bool AITstar::isEdgeBetter(const Edge &lhs, const Edge &rhs) const
+        {
+            return std::lexicographical_compare(
+                lhs.getSortKey().cbegin(), lhs.getSortKey().cend(), rhs.getSortKey().cbegin(), rhs.getSortKey().cend(),
+                [this](const auto &a, const auto &b) { return objective_->isCostBetterThan(a, b); });
+        }
+
+        bool AITstar::isVertexBetter(const aitstar::KeyVertexPair &lhs, const aitstar::KeyVertexPair &rhs) const
+        {
+            return std::lexicographical_compare(
+                lhs.first.cbegin(), lhs.first.cend(), rhs.first.cbegin(), rhs.first.cend(),
+                [this](const auto &a, const auto &b) { return objective_->isCostBetterThan(a, b); });
+        }
+
+        void AITstar::updateReverseSearchVertex(const std::shared_ptr<Vertex> &vertex)
+        {
+            // If the vertex is a goal, there's no updating to do.
+            if (graph_.isGoal(vertex))
+            {
+                assert(objective_->isCostEquivalentTo(vertex->getCostToComeFromGoal(), objective_->identityCost()));
+                return;
             }
 
-            // Update all successors. Start with the reverse search children, because if this vertex
-            // becomes the parent of a neighbor, that neighbor would be updated again as part of the
-            // reverse children.
+            // Get the best parent for this vertex.
+            auto bestParent = vertex->getReverseParent();
+            auto bestCost = vertex->hasReverseParent() ? vertex->getCostToComeFromGoal() : objective_->infiniteCost();
+
+            // Check all neighbors as defined by the RGG.
+            for (const auto &neighbor : graph_.getNeighbors(vertex))
+            {
+                if (neighbor->getId() != vertex->getId() && !neighbor->isBlacklistedAsChild(vertex) &&
+                    !vertex->isBlacklistedAsChild(neighbor))
+                {
+                    auto edgeCost = objective_->motionCostHeuristic(neighbor->getState(), vertex->getState());
+                    auto parentCost = objective_->combineCosts(neighbor->getExpandedCostToComeFromGoal(), edgeCost);
+                    if (objective_->isCostBetterThan(parentCost, bestCost))
+                    {
+                        bestParent = neighbor;
+                        bestCost = parentCost;
+                    }
+                }
+            }
+
+            // Check all children this vertex holds in the forward search.
+            for (const auto &forwardChild : vertex->getForwardChildren())
+            {
+                auto edgeCost = objective_->motionCostHeuristic(forwardChild->getState(), vertex->getState());
+                auto parentCost = objective_->combineCosts(forwardChild->getExpandedCostToComeFromGoal(), edgeCost);
+
+                if (objective_->isCostBetterThan(parentCost, bestCost))
+                {
+                    bestParent = forwardChild;
+                    bestCost = parentCost;
+                }
+            }
+
+            // Check the parent of this vertex in the forward search.
+            if (vertex->hasForwardParent())
+            {
+                auto forwardParent = vertex->getForwardParent();
+                auto edgeCost = objective_->motionCostHeuristic(forwardParent->getState(), vertex->getState());
+                auto parentCost = objective_->combineCosts(forwardParent->getExpandedCostToComeFromGoal(), edgeCost);
+
+                if (objective_->isCostBetterThan(parentCost, bestCost))
+                {
+                    bestParent = forwardParent;
+                    bestCost = parentCost;
+                }
+            }
+
+            // Set the best cost as the cost-to-come from the goal.
+            vertex->setCostToComeFromGoal(bestCost);
+
+            // What happens next depends on whether the vertex is disconnected or not.
+            if (objective_->isFinite(bestCost))
+            {
+                // The vertex is connected. Update the reverse parent.
+                vertex->setReverseParent(bestParent);
+                bestParent->addToReverseChildren(vertex);
+            }
+            else
+            {
+                // This vertex is now orphaned. Reset the reverse parent if the vertex had one.
+                if (vertex->hasReverseParent())
+                {
+                    vertex->getReverseParent()->removeFromReverseChildren(vertex->getId());
+                    vertex->resetReverseParent();
+                }
+            }
+
+            // If this has made the vertex inconsistent, insert or update it in the open queue.
+            if (!vertex->isConsistent())
+            {
+                insertOrUpdateInReverseQueue(vertex);
+            }
+            else  // Remove this vertex from the queue if it is in the queue if it is consistent.
+            {
+                auto reverseQueuePointer = vertex->getReverseQueuePointer();
+                if (reverseQueuePointer)
+                {
+                    reverseQueue_.remove(reverseQueuePointer);
+                    vertex->resetReverseQueuePointer();
+                }
+            }
+
+            // This vertex now has a changed cost-to-come in the reverse search. All edges in the forward queue that
+            // have this vertex as a target must be updated. This cannot be delayed, as whether the reverse search
+            // can be suspended depends on the best edge in the forward queue.
+            for (const auto &element : vertex->getForwardQueueIncomingLookup())
+            {
+                auto &edge = element->data;
+                edge.setSortKey(computeSortKey(edge.getParent(), edge.getChild()));
+                forwardQueue_.update(element);
+            }
+        }
+
+        void AITstar::updateReverseSearchNeighbors(const std::shared_ptr<Vertex> &vertex)
+        {
+            // Start with the reverse search children, because if this vertex becomes the parent of a neighbor, that
+            // neighbor would be updated again as part of the reverse children.
             for (const auto &child : vertex->getReverseChildren())
             {
-                reverseSearchUpdateVertex(child);
+                updateReverseSearchVertex(child);
             }
 
             // We can now process the neighbors.
@@ -987,216 +938,24 @@ namespace ompl
                 if (neighbor->getId() != vertex->getId() && !neighbor->isBlacklistedAsChild(vertex) &&
                     !vertex->isBlacklistedAsChild(neighbor))
                 {
-                    reverseSearchUpdateVertex(neighbor);
+                    updateReverseSearchVertex(neighbor);
                 }
             }
 
             // We also need to update the forward search children.
             for (const auto &child : vertex->getForwardChildren())
             {
-                reverseSearchUpdateVertex(child);
+                updateReverseSearchVertex(child);
             }
 
             // We also need to update the forward search parent if it exists.
             if (vertex->hasForwardParent())
             {
-                reverseSearchUpdateVertex(vertex->getForwardParent());
-            }
-
-            if (!edgesToBeInserted_.empty())
-            {
-                if (haveAllVerticesBeenProcessed(edgesToBeInserted_))
-                {
-                    for (std::size_t i = 0u; i < edgesToBeInserted_.size(); ++i)
-                    {
-                        auto &edge = edgesToBeInserted_.at(i);
-                        edge.setSortKey(computeSortKey(edge.getParent(), edge.getChild()));
-                        insertOrUpdateInForwardQueue(edge);
-                    }
-                    edgesToBeInserted_.clear();
-                }
+                updateReverseSearchVertex(vertex->getForwardParent());
             }
         }
 
-        void AITstar::reverseSearchUpdateVertex(const std::shared_ptr<aitstar::Vertex> &vertex)
-        {
-            if (!graph_.isGoal(vertex))
-            {
-                // Get the best parent for this vertex.
-                auto bestParent = vertex->getReverseParent();
-                auto bestCost =
-                    vertex->hasReverseParent() ? vertex->getCostToComeFromGoal() : objective_->infiniteCost();
-
-                // Check all neighbors as defined by the graph.
-                for (const auto &neighbor : graph_.getNeighbors(vertex))
-                {
-                    if (neighbor->getId() != vertex->getId() && !neighbor->isBlacklistedAsChild(vertex) &&
-                        !vertex->isBlacklistedAsChild(neighbor))
-                    {
-                        auto edgeCost = objective_->motionCostHeuristic(neighbor->getState(), vertex->getState());
-                        auto parentCost = objective_->combineCosts(neighbor->getExpandedCostToComeFromGoal(), edgeCost);
-                        if (objective_->isCostBetterThan(parentCost, bestCost))
-                        {
-                            bestParent = neighbor;
-                            bestCost = parentCost;
-                        }
-                    }
-                }
-
-                // Check all children this vertex holds in the forward search.
-                for (const auto &forwardChild : vertex->getForwardChildren())
-                {
-                    auto edgeCost = objective_->motionCostHeuristic(forwardChild->getState(), vertex->getState());
-                    auto parentCost = objective_->combineCosts(forwardChild->getExpandedCostToComeFromGoal(), edgeCost);
-
-                    if (objective_->isCostBetterThan(parentCost, bestCost))
-                    {
-                        bestParent = forwardChild;
-                        bestCost = parentCost;
-                    }
-                }
-
-                // Check the parent of this vertex in the forward search.
-                if (vertex->hasForwardParent())
-                {
-                    auto forwardParent = vertex->getForwardParent();
-                    auto edgeCost = objective_->motionCostHeuristic(forwardParent->getState(), vertex->getState());
-                    auto parentCost =
-                        objective_->combineCosts(forwardParent->getExpandedCostToComeFromGoal(), edgeCost);
-
-                    if (objective_->isCostBetterThan(parentCost, bestCost))
-                    {
-                        bestParent = forwardParent;
-                        bestCost = parentCost;
-                    }
-                }
-
-                // Check the parent of this vertex in the reverse search.
-                if (vertex->hasReverseParent())
-                {
-                    auto reverseParent = vertex->getReverseParent();
-                    auto edgeCost = objective_->motionCostHeuristic(reverseParent->getState(), vertex->getState());
-                    auto parentCost =
-                        objective_->combineCosts(reverseParent->getExpandedCostToComeFromGoal(), edgeCost);
-
-                    if (objective_->isCostBetterThan(parentCost, bestCost))
-                    {
-                        bestParent = reverseParent;
-                        bestCost = parentCost;
-                    }
-                }
-
-                // If this vertex is now disconnected, take special care.
-                if (!objective_->isFinite(bestCost))
-                {
-                    // Reset the reverse parent if the vertex has one.
-                    if (vertex->hasReverseParent())
-                    {
-                        vertex->getReverseParent()->removeFromReverseChildren(vertex->getId());
-                        vertex->resetReverseParent();
-                    }
-
-                    // Invalidate the branch in the reverse search tree that is rooted at this vertex.
-                    vertex->setCostToComeFromGoal(objective_->infiniteCost());
-                    vertex->setExpandedCostToComeFromGoal(objective_->infiniteCost());
-                    auto affectedVertices = vertex->invalidateReverseBranch();
-
-                    // Remove the affected edges from the forward queue, placing them in the edge cache.
-                    for (const auto &affectedVertex : affectedVertices)
-                    {
-                        auto forwardQueueIncomingLookup = affectedVertex.lock()->getForwardQueueIncomingLookup();
-                        for (const auto &element : forwardQueueIncomingLookup)
-                        {
-                            edgesToBeInserted_.emplace_back(element->data);
-                            element->data.getParent()->removeFromForwardQueueOutgoingLookup(element);
-                            forwardQueue_.remove(element);
-                        }
-                        affectedVertex.lock()->resetForwardQueueIncomingLookup();
-
-                        auto forwardQueueOutgoingLookup = affectedVertex.lock()->getForwardQueueOutgoingLookup();
-                        for (const auto &element : forwardQueueOutgoingLookup)
-                        {
-                            edgesToBeInserted_.emplace_back(element->data);
-                            element->data.getChild()->removeFromForwardQueueIncomingLookup(element);
-                            forwardQueue_.remove(element);
-                        }
-                        affectedVertex.lock()->resetForwardQueueOutgoingLookup();
-                    }
-
-                    // Remove appropriate edges from the forward queue that target the root of the branch.
-                    auto vertexForwardQueueIncomingLookup = vertex->getForwardQueueIncomingLookup();
-                    for (const auto &element : vertexForwardQueueIncomingLookup)
-                    {
-                        auto &edge = element->data;
-                        auto it = std::find_if(affectedVertices.begin(), affectedVertices.end(),
-                                               [edge](const auto &affectedVertex) {
-                                                   return affectedVertex.lock()->getId() == edge.getParent()->getId();
-                                               });
-                        if (it != affectedVertices.end())
-                        {
-                            edgesToBeInserted_.emplace_back(element->data);
-                            vertex->removeFromForwardQueueIncomingLookup(element);
-                            element->data.getParent()->removeFromForwardQueueOutgoingLookup(element);
-                            forwardQueue_.remove(element);
-                        }
-                    }
-
-                    // Remove appropriate edges from the forward queue that target the root of the branch.
-                    auto vertexForwardQueueOutgoingLookup = vertex->getForwardQueueOutgoingLookup();
-                    for (const auto &element : vertexForwardQueueOutgoingLookup)
-                    {
-                        edgesToBeInserted_.emplace_back(element->data);
-                        vertex->removeFromForwardQueueOutgoingLookup(element);
-                        element->data.getChild()->removeFromForwardQueueIncomingLookup(element);
-                        forwardQueue_.remove(element);
-                    }
-
-                    // Check update the invalidated vertices and insert them in open if they become connected to the
-                    // tree.
-                    for (const auto &affectedVertex : affectedVertices)
-                    {
-                        auto affectedVertexPtr = affectedVertex.lock();
-
-                        reverseSearchUpdateVertex(affectedVertexPtr);
-                        if (affectedVertex.lock()->hasReverseParent())
-                        {
-                            insertOrUpdateInReverseQueue(affectedVertexPtr);
-                            affectedVertexPtr->setExpandedCostToComeFromGoal(objective_->infiniteCost());
-                        }
-                    }
-
-                    return;
-                }
-
-                // Update the reverse parent.
-                vertex->setReverseParent(bestParent);
-
-                // Update the children of the parent.
-                bestParent->addToReverseChildren(vertex);
-
-                // Set the cost to come from the goal.
-                vertex->setCostToComeFromGoal(bestCost);
-
-                // If this has made the vertex inconsistent, insert or update it in the open queue.
-                if (!objective_->isCostEquivalentTo(vertex->getCostToComeFromGoal(),
-                                                    vertex->getExpandedCostToComeFromGoal()))
-                {
-                    insertOrUpdateInReverseQueue(vertex);
-                }
-                else
-                {
-                    // Remove this vertex from the queue if it is in the queue.
-                    auto reverseQueuePointer = vertex->getReverseQueuePointer();
-                    if (reverseQueuePointer)
-                    {
-                        reverseQueue_.remove(reverseQueuePointer);
-                        vertex->resetReverseQueuePointer();
-                    }
-                }
-            }
-        }
-
-        void AITstar::insertOrUpdateInReverseQueue(const std::shared_ptr<aitstar::Vertex> &vertex)
+        void AITstar::insertOrUpdateInReverseQueue(const std::shared_ptr<Vertex> &vertex)
         {
             // Get the pointer to the element in the queue.
             auto element = vertex->getReverseQueuePointer();
@@ -1210,8 +969,8 @@ namespace ompl
             else  // Insert it into the queue otherwise.
             {
                 // Compute the sort key for the vertex queue.
-                std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<aitstar::Vertex>> element(
-                    computeSortKey(vertex), vertex);
+                std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<Vertex>> element(computeSortKey(vertex),
+                                                                                             vertex);
 
                 // Insert the vertex into the queue, storing the corresponding pointer.
                 auto reverseQueuePointer = reverseQueue_.insert(element);
@@ -1219,11 +978,11 @@ namespace ompl
             }
         }
 
-        void AITstar::insertOrUpdateInForwardQueue(const aitstar::Edge &edge)
+        void AITstar::insertOrUpdateInForwardQueue(const Edge &edge)
         {
             // Check if the edge is already in the queue and can be updated.
-            auto lookup = edge.getChild()->getForwardQueueIncomingLookup();
-            auto it = std::find_if(lookup.begin(), lookup.end(), [&edge](const auto element) {
+            const auto lookup = edge.getChild()->getForwardQueueIncomingLookup();
+            const auto it = std::find_if(lookup.begin(), lookup.end(), [&edge](const auto element) {
                 return element->data.getParent()->getId() == edge.getParent()->getId();
             });
 
@@ -1236,8 +995,13 @@ namespace ompl
                                     [&edge](const auto element) {
                                         return element->data.getChild()->getId() == edge.getChild()->getId();
                                     }) != edge.getParent()->getForwardQueueOutgoingLookup().end());
-                (*it)->data.setSortKey(edge.getSortKey());
-                forwardQueue_.update(*it);
+
+                // This edge exists in the queue. If the new sort key is better than the old, we update it.
+                if (isEdgeBetter(edge, (*it)->data))
+                {
+                    (*it)->data.setSortKey(edge.getSortKey());
+                    forwardQueue_.update(*it);
+                }
             }
             else
             {
@@ -1247,11 +1011,19 @@ namespace ompl
             }
         }
 
+        void AITstar::insertOrUpdateInForwardQueue(const std::vector<Edge> &edges)
+        {
+            for (const auto &edge : edges)
+            {
+                insertOrUpdateInForwardQueue(edge);
+            }
+        }
+
         std::shared_ptr<ompl::geometric::PathGeometric>
-        AITstar::getPathToVertex(const std::shared_ptr<aitstar::Vertex> &vertex) const
+        AITstar::getPathToVertex(const std::shared_ptr<Vertex> &vertex) const
         {
             // Create the reverse path by following the parents to the start.
-            std::vector<std::shared_ptr<aitstar::Vertex>> reversePath;
+            std::vector<std::shared_ptr<Vertex>> reversePath;
             auto current = vertex;
             while (!graph_.isStart(current))
             {
@@ -1270,8 +1042,8 @@ namespace ompl
             return path;
         }
 
-        std::array<ompl::base::Cost, 3u> AITstar::computeSortKey(const std::shared_ptr<aitstar::Vertex> &parent,
-                                                                 const std::shared_ptr<aitstar::Vertex> &child) const
+        std::array<ompl::base::Cost, 3u> AITstar::computeSortKey(const std::shared_ptr<Vertex> &parent,
+                                                                 const std::shared_ptr<Vertex> &child) const
         {
             // Compute the sort key [g_T(start) + c_hat(start, neighbor) + h_hat(neighbor), g_T(start) +
             // c_hat(start, neighbor), g_T(start)].
@@ -1283,7 +1055,7 @@ namespace ompl
                 parent->getCostToComeFromStart()};
         }
 
-        std::array<ompl::base::Cost, 2u> AITstar::computeSortKey(const std::shared_ptr<aitstar::Vertex> &vertex) const
+        std::array<ompl::base::Cost, 2u> AITstar::computeSortKey(const std::shared_ptr<Vertex> &vertex) const
         {
             // LPA* sort key is [min(g(x), v(x)) + h(x); min(g(x), v(x))].
             return {objective_->combineCosts(objective_->betterCost(vertex->getCostToComeFromGoal(),
@@ -1292,10 +1064,10 @@ namespace ompl
                     objective_->betterCost(vertex->getCostToComeFromGoal(), vertex->getExpandedCostToComeFromGoal())};
         }
 
-        std::vector<aitstar::Edge> AITstar::getOutgoingEdges(const std::shared_ptr<aitstar::Vertex> &vertex) const
+        std::vector<Edge> AITstar::getOutgoingEdges(const std::shared_ptr<Vertex> &vertex) const
         {
             // Prepare the return variable.
-            std::vector<aitstar::Edge> outgoingEdges;
+            std::vector<Edge> outgoingEdges;
 
             // Insert the edges to the current children.
             for (const auto &child : vertex->getForwardChildren())
@@ -1338,32 +1110,13 @@ namespace ompl
             return outgoingEdges;
         }
 
-        bool AITstar::haveAllVerticesBeenProcessed(const std::vector<aitstar::Edge> &edges) const
-        {
-            for (const auto &edge : edges)
-            {
-                if (!haveAllVerticesBeenProcessed(edge))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        bool AITstar::haveAllVerticesBeenProcessed(const aitstar::Edge &edge) const
-        {
-            return edge.getParent()->hasBeenExpandedDuringCurrentReverseSearch() &&
-                   edge.getChild()->hasBeenExpandedDuringCurrentReverseSearch();
-        }
-
         void AITstar::updateExactSolution()
         {
             // Check if any of the goals have a cost to come less than the current solution cost.
             for (const auto &goal : graph_.getGoalVertices())
             {
-                // We need to check whether the cost is better, or whether someone has removed the exact solution from
-                // the problem definition.
+                // We need to check whether the cost is better, or whether someone has removed the exact solution
+                // from the problem definition.
                 if (objective_->isCostBetterThan(goal->getCostToComeFromStart(), solutionCost_) ||
                     (!pdef_->hasExactSolution() && objective_->isFinite(goal->getCostToComeFromStart())))
                 {
@@ -1386,15 +1139,15 @@ namespace ompl
             }
         }
 
-        void AITstar::updateApproximateSolution(const std::shared_ptr<aitstar::Vertex> &vertex)
+        void AITstar::updateApproximateSolution(const std::shared_ptr<Vertex> &vertex)
         {
             assert(trackApproximateSolutions_);
             if (vertex->hasForwardParent() || graph_.isStart(vertex))
             {
                 auto costToGoal = computeCostToGoToGoal(vertex);
 
-                // We need to check whether this is better than the current approximate solution or whether someone has
-                // removed all approximate solutions from the problem definition.
+                // We need to check whether this is better than the current approximate solution or whether someone
+                // has removed all approximate solutions from the problem definition.
                 if (objective_->isCostBetterThan(costToGoal, approximateSolutionCostToGoal_) ||
                     !pdef_->hasApproximateSolution())
                 {
@@ -1416,7 +1169,20 @@ namespace ompl
             }
         };
 
-        ompl::base::Cost AITstar::computeCostToGoToStartHeuristic(const std::shared_ptr<aitstar::Vertex> &vertex) const
+        void AITstar::updateSolution(const std::shared_ptr<Vertex> &vertex)
+        {
+            // Check whether we found a better path to any goal.
+            updateExactSolution();
+
+            // If we don't have an exact solution but are tracking approximate solutions, see if the vertex is
+            // the best approximate solution so far.
+            if (!pdef_->hasExactSolution() && trackApproximateSolutions_)
+            {
+                updateApproximateSolution(vertex);
+            }
+        }
+
+        ompl::base::Cost AITstar::computeCostToGoToStartHeuristic(const std::shared_ptr<Vertex> &vertex) const
         {
             // We need to loop over all start vertices and see which is the closest one.
             ompl::base::Cost bestCost = objective_->infiniteCost();
@@ -1428,7 +1194,7 @@ namespace ompl
             return bestCost;
         }
 
-        ompl::base::Cost AITstar::computeCostToGoToGoalHeuristic(const std::shared_ptr<aitstar::Vertex> &vertex) const
+        ompl::base::Cost AITstar::computeCostToGoToGoalHeuristic(const std::shared_ptr<Vertex> &vertex) const
         {
             // We need to loop over all goal vertices and see which is the closest one.
             ompl::base::Cost bestCost = objective_->infiniteCost();
@@ -1440,7 +1206,7 @@ namespace ompl
             return bestCost;
         }
 
-        ompl::base::Cost AITstar::computeCostToGoToGoal(const std::shared_ptr<aitstar::Vertex> &vertex) const
+        ompl::base::Cost AITstar::computeCostToGoToGoal(const std::shared_ptr<Vertex> &vertex) const
         {
             // We need to loop over all goal vertices and see which is the closest one.
             ompl::base::Cost bestCost = objective_->infiniteCost();
@@ -1491,21 +1257,33 @@ namespace ompl
             return numVerticesInReverseTree;
         }
 
-        void AITstar::invalidateCostToComeFromGoalOfReverseBranch(const std::shared_ptr<aitstar::Vertex> &vertex)
+        void AITstar::invalidateCostToComeFromGoalOfReverseBranch(const std::shared_ptr<Vertex> &vertex)
         {
-            vertex->unregisterExpansionDuringReverseSearch();
-            // Update the cost of all reverse children and remove from open.
+            // Reset the cost to come from the goal.
+            vertex->resetCostToComeFromGoal();
+            vertex->resetExpandedCostToComeFromGoal();
+            vertex->getReverseParent()->removeFromReverseChildren(vertex->getId());
+            vertex->resetReverseParent();
+
+            // Update all affected edges in the forward queue.
+            for (const auto &edge : vertex->getForwardQueueIncomingLookup())
+            {
+                edge->data.setSortKey(computeSortKey(edge->data.getParent(), edge->data.getChild()));
+                forwardQueue_.update(edge);
+            }
+
+            // Remove this vertex from the reverse search queue if it is it.
+            auto reverseQueuePointer = vertex->getReverseQueuePointer();
+            if (reverseQueuePointer)
+            {
+                reverseQueue_.remove(reverseQueuePointer);
+                vertex->resetReverseQueuePointer();
+            }
+
+            // Update the cost of all reverse children.
             for (const auto &child : vertex->getReverseChildren())
             {
                 invalidateCostToComeFromGoalOfReverseBranch(child);
-                child->setCostToComeFromGoal(objective_->infiniteCost());
-                child->setExpandedCostToComeFromGoal(objective_->infiniteCost());
-                auto reverseQueuePointer = child->getReverseQueuePointer();
-                if (reverseQueuePointer)
-                {
-                    reverseQueue_.remove(reverseQueuePointer);
-                    child->resetReverseQueuePointer();
-                }
             }
         }
 

@@ -41,11 +41,11 @@
 #include <memory>
 
 #include "ompl/base/Planner.h"
-#include "ompl/datastructures/BinaryHeap.h"
 #include "ompl/geometric/PathGeometric.h"
 #include "ompl/geometric/planners/informedtrees/aitstar/Edge.h"
 #include "ompl/geometric/planners/informedtrees/aitstar/ImplicitGraph.h"
 #include "ompl/geometric/planners/informedtrees/aitstar/Vertex.h"
+#include "ompl/geometric/planners/informedtrees/aitstar/Queuetypes.h"
 
 namespace ompl
 {
@@ -88,7 +88,7 @@ namespace ompl
         {
         public:
             /** \brief Constructs a AIT*. */
-            AITstar(const ompl::base::SpaceInformationPtr &spaceInformation);
+            explicit AITstar(const ompl::base::SpaceInformationPtr &spaceInformation);
 
             /** \brief Destructs a AIT*. */
             ~AITstar() = default;
@@ -175,16 +175,22 @@ namespace ompl
             void iterate(const ompl::base::PlannerTerminationCondition &terminationCondition);
 
             /** \brief Performs one forward search iterations. */
-            void performForwardSearchIteration();
+            void iterateForwardSearch();
 
             /** \brief Performs one reverse search iterations. */
-            void performReverseSearchIteration();
+            void iterateReverseSearch();
 
             /** \brief Updates a vertex in the reverse search queue (LPA* update). */
-            void reverseSearchUpdateVertex(const std::shared_ptr<aitstar::Vertex> &vertex);
+            void updateReverseSearchVertex(const std::shared_ptr<aitstar::Vertex> &vertex);
 
-            /** \brief Inserts or updates a vertex in the reverse queue. */
+            /** \brief Updates all neighbors of a reverse search vertex. */
+            void updateReverseSearchNeighbors(const std::shared_ptr<aitstar::Vertex> &vertex);
+
+            /** \brief Inserts or updates an edge in the forward queue. */
             void insertOrUpdateInForwardQueue(const aitstar::Edge &edge);
+
+            /** \brief Inserts or updates edges in the forward queue. */
+            void insertOrUpdateInForwardQueue(const std::vector<aitstar::Edge> &edges);
 
             /** \brief Inserts or updates a vertex in the reverse queue. */
             void insertOrUpdateInReverseQueue(const std::shared_ptr<aitstar::Vertex> &vertex);
@@ -195,11 +201,29 @@ namespace ompl
             /** \brief Rebuilds the forward queue. */
             void rebuildReverseQueue();
 
+            /** \brief Clears the forward queue, resetting the lookups of the vertices in it. */
+            void clearForwardQueue();
+
+            /** \brief Clears the reverse queue, resetting the lookups of the vertices in it. */
+            void clearReverseQueue();
+
             /** \brief Prints a message using OMPL_INFORM to let the user know that AIT* found a new solution. */
             void informAboutNewSolution() const;
 
             /** \brief Prints a message using OMPL_INFORM to let the user know of the planner status. */
             void informAboutPlannerStatus(ompl::base::PlannerStatus::StatusType status) const;
+
+            /** \brief Inserts the goal vertices of the graph into the reverse search queue. */
+            void insertGoalVerticesInReverseQueue();
+
+            /** \brief Insert start vertices in the forward queue. */
+            void expandStartVerticesIntoForwardQueue();
+
+            /** \brief Check whether the reverse search must be continued. */
+            bool continueReverseSearch() const;
+
+            /** \brief Check whether the forward search must be continued. */
+            bool continueForwardSearch();
 
             /** \brief Returns the path a start to the argument. */
             std::shared_ptr<ompl::geometric::PathGeometric>
@@ -218,13 +242,6 @@ namespace ompl
             /** \brief Get all outgoing edges of a vertex. */
             std::vector<aitstar::Edge> getOutgoingEdges(const std::shared_ptr<aitstar::Vertex> &vertex) const;
 
-            /** \brief Check whether all vertices of a set of edges have been processed by the reverse queue. */
-            bool haveAllVerticesBeenProcessed(const std::vector<aitstar::Edge> &edges) const;
-
-            /** \brief Check whether the parent and child vertices of an edge have been processed by the reverse queue.
-             */
-            bool haveAllVerticesBeenProcessed(const aitstar::Edge &edges) const;
-
             /** \brief Checks whether the cost to come of a goal vertex has been updated and updates the solution if so.
              */
             void updateExactSolution();
@@ -232,6 +249,9 @@ namespace ompl
             /** \brief Checks whether the input vertex is the new best approximate solution and updates the solution in
              * the problem definition if so. **/
             void updateApproximateSolution(const std::shared_ptr<aitstar::Vertex> &vertex);
+
+            /** \brief Updates the exact solution and if AIT* track approximate solutions, it updates it as well. */
+            void updateSolution(const std::shared_ptr<aitstar::Vertex> &vertex);
 
             /** \brief Returns the best cost-to-go-heuristic to any start in the graph. */
             ompl::base::Cost computeCostToGoToStartHeuristic(const std::shared_ptr<aitstar::Vertex> &vertex) const;
@@ -267,25 +287,17 @@ namespace ompl
             /** \brief The increasingly dense sampling-based approximation. */
             aitstar::ImplicitGraph graph_;
 
-            /** \brief The type of the edge queue. */
-            using EdgeQueue =
-                ompl::BinaryHeap<aitstar::Edge, std::function<bool(const aitstar::Edge &, const aitstar::Edge &)>>;
-
             /** \brief The forward queue. */
-            EdgeQueue forwardQueue_;
-
-            /** \brief A type for elements in the vertex queue. */
-            using KeyVertexPair = std::pair<std::array<ompl::base::Cost, 2u>, std::shared_ptr<aitstar::Vertex>>;
-
-            /** \brief The type of the vertex queue. */
-            using VertexQueue =
-                ompl::BinaryHeap<KeyVertexPair, std::function<bool(const KeyVertexPair &, const KeyVertexPair &)>>;
+            aitstar::EdgeQueue forwardQueue_;
 
             /** \brief The reverse queue. */
-            VertexQueue reverseQueue_;
+            aitstar::VertexQueue reverseQueue_;
 
-            /** \brief The edges to be inserted in the forward queue. */
-            std::vector<aitstar::Edge> edgesToBeInserted_{};
+            /** \brief Lexicographically compares the keys of two edges. */
+            bool isEdgeBetter(const aitstar::Edge &lhs, const aitstar::Edge &rhs) const;
+
+            /** \brief Lexicographically compares the keys of two vertices. */
+            bool isVertexBetter(const aitstar::KeyVertexPair &lhs, const aitstar::KeyVertexPair &rhs) const;
 
             /** \brief The number of iterations that have been performed. */
             std::size_t numIterations_{0u};
@@ -298,9 +310,6 @@ namespace ompl
 
             /** \brief Flag whether the forward search has been started on the batch. */
             bool isForwardSearchStartedOnBatch_{false};
-
-            /** \brief Flag whether the forward queue needs to be rebuilt. */
-            bool forwardQueueMustBeRebuilt_{false};
 
             /** \brief The option that specifies whether to repair the reverse search when detecting a collision. */
             bool repairReverseSearch_{true};

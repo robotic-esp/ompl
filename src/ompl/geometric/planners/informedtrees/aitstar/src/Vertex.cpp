@@ -61,8 +61,7 @@ namespace ompl
             }  // namespace
 
             Vertex::Vertex(const ompl::base::SpaceInformationPtr &spaceInformation,
-                           const ompl::base::ProblemDefinitionPtr &problemDefinition,
-                           const std::size_t &batchId)
+                           const ompl::base::ProblemDefinitionPtr &problemDefinition, const std::size_t &batchId)
               : spaceInformation_(spaceInformation)
               , problemDefinition_(problemDefinition)
               , objective_(problemDefinition->getOptimizationObjective())
@@ -121,7 +120,7 @@ namespace ompl
 
             ompl::base::Cost Vertex::getExpandedCostToComeFromGoal() const
             {
-                if (expandedReverseSearchId_ != batchId_)
+                if (reverseSearchBatchId_ != batchId_)
                 {
                     expandedCostToComeFromGoal_ = objective_->infiniteCost();
                 }
@@ -177,8 +176,19 @@ namespace ompl
                 costToComeFromGoal_ = cost;
             }
 
+            void Vertex::resetCostToComeFromGoal()
+            {
+                costToComeFromGoal_ = objective_->infiniteCost();
+            }
+            
+            void Vertex::resetExpandedCostToComeFromGoal()
+            {
+                expandedCostToComeFromGoal_ = objective_->infiniteCost();
+            }
+
             void Vertex::setExpandedCostToComeFromGoal(const ompl::base::Cost &cost)
             {
+                // reverseSearchBatchId_ = batchId_;
                 expandedCostToComeFromGoal_ = cost;
             }
 
@@ -192,8 +202,8 @@ namespace ompl
                 // Update the cost of all forward children.
                 for (const auto &child : getForwardChildren())
                 {
-                    child->setCostToComeFromStart(objective_->combineCosts(
-                        costToComeFromStart_, child->getEdgeCostFromForwardParent()));
+                    child->setCostToComeFromStart(
+                        objective_->combineCosts(costToComeFromStart_, child->getEdgeCostFromForwardParent()));
                     child->updateCostOfForwardBranch();
                 }
             }
@@ -214,7 +224,6 @@ namespace ompl
                 }
                 reverseChildren_.clear();
 
-                unregisterExpansionDuringReverseSearch();
                 return accumulatedChildren;
             }
 
@@ -435,40 +444,9 @@ namespace ompl
                 return children;
             }
 
-            void Vertex::registerPoppedOutgoingEdgeDuringForwardSearch()
+            bool Vertex::isConsistent() const
             {
-                poppedOutgoingEdgeId_ = batchId_;
-            }
-
-            void Vertex::registerExpansionDuringReverseSearch()
-            {
-                expandedCostToComeFromGoal_ = costToComeFromGoal_;
-                expandedReverseSearchId_ = batchId_;
-            }
-
-            void Vertex::unregisterExpansionDuringReverseSearch()
-            {
-                expandedReverseSearchId_ = 0u;
-            }
-
-            void Vertex::registerInsertionIntoQueueDuringReverseSearch()
-            {
-                insertedIntoQueueId_ = batchId_;
-            }
-
-            bool Vertex::hasHadOutgoingEdgePoppedDuringCurrentForwardSearch() const
-            {
-                return poppedOutgoingEdgeId_ == batchId_;
-            }
-
-            bool Vertex::hasBeenExpandedDuringCurrentReverseSearch() const
-            {
-                return expandedReverseSearchId_ == batchId_;
-            }
-
-            bool Vertex::hasBeenInsertedIntoQueueDuringCurrentReverseSearch() const
-            {
-                return insertedIntoQueueId_ == batchId_;
+                return objective_->isCostEquivalentTo(costToComeFromGoal_, expandedCostToComeFromGoal_);
             }
 
             void Vertex::setReverseQueuePointer(
