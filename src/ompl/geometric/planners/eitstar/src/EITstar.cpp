@@ -157,10 +157,10 @@ namespace ompl
         ompl::base::PlannerStatus EITstar::solve(const ompl::base::PlannerTerminationCondition &terminationCondition)
         {
             // Check that the planner and state space are setup.
-            checkSetup();
+            auto status = checkSetup();
 
             // Update the status of the planner.
-            auto status = checkProblem(terminationCondition);
+            status = checkProblem(terminationCondition);
 
             // Return early if no problem can be solved.
             if (status == ompl::base::PlannerStatus::StatusType::INVALID_START ||
@@ -307,12 +307,20 @@ namespace ompl
         Edge EITstar::getNextForwardEdge() const
         {
             assert(forwardQueue_);
+            if (forwardQueue_->empty())
+            {
+                return {};
+            }
             return forwardQueue_->peek(suboptimalityFactor_);
         }
 
         Edge EITstar::getNextReverseEdge() const
         {
             assert(reverseQueue_);
+            if (reverseQueue_->empty())
+            {
+                return {};
+            }
             return reverseQueue_->peek();
         }
 
@@ -591,19 +599,23 @@ namespace ompl
             }
         }
 
-        void EITstar::checkSetup() const
+        ompl::base::PlannerStatus::StatusType EITstar::checkSetup() const
         {
             // Ensure the planner is setup.
             if (!setup_)
             {
-                throw std::runtime_error("Called solve on EIT* without setting up the planner first.");
+                OMPL_ERROR("%s: Called solve without setting up the planner first.", name_.c_str());
+                return ompl::base::PlannerStatus::StatusType::ABORT;
             }
 
             // Ensure the space is setup.
             if (!spaceInfo_->isSetup())
             {
-                throw std::runtime_error("Called solve on EIT* without setting up the state space first.");
+                OMPL_ERROR("%s: Called solve without setting up the state space first.", name_.c_str());
+                return ompl::base::PlannerStatus::StatusType::ABORT;
             }
+
+            return ompl::base::PlannerStatus::StatusType::UNKNOWN;
         }
 
         ompl::base::PlannerStatus::StatusType
