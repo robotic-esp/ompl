@@ -92,12 +92,12 @@ namespace ompl
                 return rewireFactor_;
             }
 
-            void ImplicitGraph::setMaxNumberOfInitialGoals(unsigned int maxNumberOfGoals)
+            void ImplicitGraph::setMaxNumberOfGoals(unsigned int maxNumberOfGoals)
             {
                 maxNumGoals_ = maxNumberOfGoals;
             }
 
-            unsigned int ImplicitGraph::getMaxNumberOfInitialGoals() const
+            unsigned int ImplicitGraph::getMaxNumberOfGoals() const
             {
                 return maxNumGoals_;
             }

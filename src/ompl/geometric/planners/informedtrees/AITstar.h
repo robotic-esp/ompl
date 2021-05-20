@@ -147,10 +147,10 @@ namespace ompl
             bool getUseKNearest() const;
 
             /** \brief Set the maximum number of goals AIT* will sample from sampleable goal regions. */
-            void setMaxNumberOfInitialGoals(unsigned int numberOfGoals);
+            void setMaxNumberOfGoals(unsigned int numberOfGoals);
 
             /** \brief Get the maximum number of goals AIT* will sample from sampleable goal regions. */
-            unsigned int getMaxNumberOfInitialGoals() const;
+            unsigned int getMaxNumberOfGoals() const;
 
             /** \brief Enable LPA* repair of reverse search. */
             void setRepairReverseSearch(bool repairReverseSearch);

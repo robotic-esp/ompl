@@ -78,9 +78,8 @@ namespace ompl
             declareParam<bool>("use_graph_pruning", this, &AITstar::enablePruning, &AITstar::isPruningEnabled, "0,1");
             declareParam<bool>("find_approximate_solutions", this, &AITstar::trackApproximateSolutions,
                                &AITstar::areApproximateSolutionsTracked, "0,1");
-            declareParam<unsigned int>("max_num_initial_goals", this, &AITstar::setMaxNumberOfInitialGoals,
-                                       &AITstar::getMaxNumberOfInitialGoals, "1:1:1000");
-            declareParam<bool>("repair_reverse_search", this, &AITstar::setRepairReverseSearch, &AITstar::getRepairReverseSearch, "0,1");
+            declareParam<bool>("set_max_num_goals", this, &AITstar::setMaxNumberOfGoals, &AITstar::getMaxNumberOfGoals,
+                               "1,1000");
 
             // Register the progress properties.
             addPlannerProgressProperty("iterations INTEGER", [this]() { return std::to_string(numIterations_); });
@@ -343,14 +342,14 @@ namespace ompl
             return graph_.getUseKNearest();
         }
 
-        void AITstar::setMaxNumberOfInitialGoals(unsigned int numberOfGoals)
+        void AITstar::setMaxNumberOfGoals(unsigned int numberOfGoals)
         {
-            graph_.setMaxNumberOfInitialGoals(numberOfGoals);
+            graph_.setMaxNumberOfGoals(numberOfGoals);
         }
 
-        unsigned int AITstar::getMaxNumberOfInitialGoals() const
+        unsigned int AITstar::getMaxNumberOfGoals() const
         {
-            return graph_.getMaxNumberOfInitialGoals();
+            return graph_.getMaxNumberOfGoals();
         }
 
         void AITstar::setRepairReverseSearch(bool repairReverseSearch)
@@ -434,12 +433,10 @@ namespace ompl
 
         void AITstar::informAboutNewSolution() const
         {
-            OMPL_INFORM("%s (%u iterations): Found a new exact solution of cost %.4f. Sampled a total of %u "
-                        "states, %u "
-                        "of which were valid samples (%.1f \%). Processed %u edges, %u of which were collision "
-                        "checked "
-                        "(%.1f \%). The forward search tree has %u vertices. The reverse search tree has %u "
-                        "vertices.",
+            OMPL_INFORM("%s (%u iterations): Found a new exact solution of cost %.4f. Sampled a total of %u states, %u "
+                        "of which were valid samples (%.1f \%). Processed %u edges, %u of which were collision checked "
+                        "(%.1f \%). The forward search tree has %u vertices, %u of which are start states. The reverse "
+                        "search tree has %u vertices, %u of which are goal states.",
                         name_.c_str(), numIterations_, solutionCost_.value(), graph_.getNumberOfSampledStates(),
                         graph_.getNumberOfValidSamples(),
                         graph_.getNumberOfSampledStates() == 0u ?
@@ -450,7 +447,8 @@ namespace ompl
                         numProcessedEdges_ == 0u ? 0.0 :
                                                    100.0 * (static_cast<float>(numEdgeCollisionChecks_) /
                                                             static_cast<float>(numProcessedEdges_)),
-                        countNumVerticesInForwardTree(), countNumVerticesInReverseTree());
+                        countNumVerticesInForwardTree(), graph_.getStartVertices().size(),
+                        countNumVerticesInReverseTree(), graph_.getGoalVertices().size());
         }
 
         void AITstar::informAboutPlannerStatus(ompl::base::PlannerStatus::StatusType status) const

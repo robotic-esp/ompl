@@ -79,10 +79,10 @@ namespace ompl
                 double getRewireFactor() const;
 
                 /** \brief Set the maximum number of goals AIT* will sample from sampleable goal regions. */
-                void setMaxNumberOfInitialGoals(unsigned int maxNumberOfGoals);
+                void setMaxNumberOfGoals(unsigned int maxNumberOfGoals);
 
                 /** \brief Get the maximum number of goals AIT* will sample from sampleable goal regions. */
-                unsigned int getMaxNumberOfInitialGoals() const;
+                unsigned int getMaxNumberOfGoals() const;
 
                 /** \brief Whether to use a k-nearest connection model. If false, it uses an r-disc model. */
                 void setUseKNearest(bool useKNearest);
