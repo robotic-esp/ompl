@@ -37,6 +37,7 @@
 #include "ompl/geometric/planners/eitstar/ForwardQueue.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "ompl/geometric/planners/eitstar/stopwatch/timetable.h"
 #include "ompl/geometric/planners/eitstar/Direction.h"
@@ -174,14 +175,14 @@ namespace ompl
                 }
 
                 // Return the correct edge.
-                if (!objective_->isCostBetterThan(lowerBoundEdgeCost, bestEffortEdgeCost))
+                if (objective_->isCostBetterThan(bestEffortEdgeCost, lowerBoundEdgeCost))
                 {
                     const auto edge = bestEffortEdge->second;
                     queue_.erase(bestEffortEdge);
                     edge.target->removeFromSourcesOfIncomingEdgesInForwardQueue(edge.source);
                     return edge;
                 }
-                else if (!objective_->isCostBetterThan(lowerBoundEdgeCost, bestCostEdge->first.estimatedCost))
+                else if (objective_->isCostBetterThan(bestCostEdge->first.estimatedCost, lowerBoundEdgeCost))
                 {
                     const auto edge = bestCostEdge->second;
                     edge.target->removeFromSourcesOfIncomingEdgesInForwardQueue(edge.source);
@@ -285,7 +286,14 @@ namespace ompl
             {
                 // I don't think this will work for problems which minimize cost, but making it work would require a
                 // larger change in OMPL.
-                return ompl::base::Cost(cost.value() * factor);
+                if (!std::isfinite(factor) || !objective_->isFinite(cost))
+                {
+                    return objective_->infiniteCost();
+                }
+                else
+                {
+                    return ompl::base::Cost(cost.value() * factor);
+                }
             }
 
             std::size_t ForwardQueue::estimateEffort(const Edge &edge) const
