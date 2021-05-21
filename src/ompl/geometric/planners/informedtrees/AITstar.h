@@ -178,6 +178,7 @@ namespace ompl
             void setLocalSeed(std::uint_fast32_t localSeed);
 
         private:
+
             /** \brief Performs one iteration of AIT*. */
             void iterate(const ompl::base::PlannerTerminationCondition &terminationCondition);
 
