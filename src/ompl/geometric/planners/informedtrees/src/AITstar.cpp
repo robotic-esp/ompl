@@ -77,8 +77,8 @@ namespace ompl
             declareParam<bool>("use_graph_pruning", this, &AITstar::enablePruning, &AITstar::isPruningEnabled, "0,1");
             declareParam<bool>("find_approximate_solutions", this, &AITstar::trackApproximateSolutions,
                                &AITstar::areApproximateSolutionsTracked, "0,1");
-            declareParam<bool>("set_max_num_goals", this, &AITstar::setMaxNumberOfGoals, &AITstar::getMaxNumberOfGoals,
-                               "1,1000");
+            declareParam<std::size_t>("set_max_num_goals", this, &AITstar::setMaxNumberOfGoals,
+                                      &AITstar::getMaxNumberOfGoals, "1:1:1000");
 
             // Register the progress properties.
             addPlannerProgressProperty("iterations INTEGER", [this]() { return std::to_string(numIterations_); });
@@ -164,11 +164,17 @@ namespace ompl
         ompl::base::PlannerStatus::StatusType
         AITstar::checkProblem(const ompl::base::PlannerTerminationCondition &terminationCondition)
         {
-            // Ensure the graph has a start state.
+            // If the graph currently does not have a start state, we wait until we get one.
             if (!graph_.hasAStartState())
             {
-                OMPL_WARN("%s: No solution can be found as no start states are available", name_.c_str());
-                return ompl::base::PlannerStatus::StatusType::INVALID_START;
+                graph_.updateStartAndGoalStates(terminationCondition, &pis_);
+
+                // If the graph still doesn't have a start after waiting there's nothing to solve.
+                if (!graph_.hasAStartState())
+                {
+                    OMPL_WARN("%s: No solution can be found as no start states are available", name_.c_str());
+                    return ompl::base::PlannerStatus::StatusType::INVALID_START;
+                }
             }
 
             // If the graph currently does not have a goal state, we wait until we get one.
