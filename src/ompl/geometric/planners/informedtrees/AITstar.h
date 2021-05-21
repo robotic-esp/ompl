@@ -152,12 +152,6 @@ namespace ompl
             /** \brief Get the maximum number of goals AIT* will sample from sampleable goal regions. */
             unsigned int getMaxNumberOfGoals() const;
 
-            /** \brief Enable LPA* repair of reverse search. */
-            void setRepairReverseSearch(bool repairReverseSearch);
-
-            /** \brief Get whether the reverse search is repaired using LPA*. */
-            bool getRepairReverseSearch() const;
-
             /** \brief Get the edge queue. */
             std::vector<aitstar::Edge> getEdgesInQueue() const;
 
@@ -312,6 +306,9 @@ namespace ompl
 
             /** \brief Lexicographically compares the keys of two vertices. */
             bool isVertexBetter(const aitstar::KeyVertexPair &lhs, const aitstar::KeyVertexPair &rhs) const;
+
+            /** \brief the number of edges in the forward queue with inconsistent target states. */
+            std::size_t numInconsistentOrUnconnectedTargets_{0u};
 
             /** \brief The number of iterations that have been performed. */
             std::size_t numIterations_{0u};
