@@ -203,7 +203,6 @@ namespace ompl
             approximateSolutionCost_ = objective_->infiniteCost();
             approximateSolutionCostToGoal_ = objective_->infiniteCost();
             numIterations_ = 0u;
-            isForwardSearchStartedOnBatch_ = false;
             Planner::clear();
         }
 
