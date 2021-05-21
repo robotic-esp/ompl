@@ -113,55 +113,18 @@ namespace ompl
                 }
             }
 
-            Edge ForwardQueue::peek(double suboptimalityFactor) const
+            Edge ForwardQueue::peek(double suboptimalityFactor)
             {
                 // Make sure the queue contains edges.
                 if (queue_.empty())
                 {
                     throw std::out_of_range("Forward queue is empty, cannot peek.");
                 }
-
-                // If the edge with suboptimality factor 1 is requested, serve that without doing any work.
-                if (suboptimalityFactor == 1.0)
-                {
-                    return queue_.begin()->second;
-                }
-
-                // Get the lower bounding edge and corresponding cost.
-                const auto lowerBoundEdge = queue_.begin();
-                const auto lowerBoundEdgeCost = inflateCost(lowerBoundEdge->first.lowerBoundCost, suboptimalityFactor);
-
-                // Find the best estimate edge and corresponding cost.
-                const auto bestCostEdge = getBestCostEstimateEdge();
-                const auto bestCostEdgeCost = inflateCost(bestCostEdge->first.estimatedCost, suboptimalityFactor);
-
-                // Find the least effort edge and corresponding cost.
-                auto bestEffortEdge = queue_.cbegin();
-                auto bestEffortEdgeCost = objective_->infiniteCost();
-                for (auto it = queue_.cbegin(); it != queue_.cend(); ++it)
-                {
-                    if (it->first.estimatedEffort < bestEffortEdge->first.estimatedEffort &&
-                        !objective_->isCostBetterThan(bestCostEdgeCost, it->first.estimatedCost))
-                    {
-                        bestEffortEdgeCost = it->first.estimatedCost;
-                        bestEffortEdge = it;
-                    }
-                }
-
-                // Return the correct edge.
-                if (!objective_->isCostBetterThan(lowerBoundEdgeCost, bestEffortEdgeCost))
-                {
-                    return bestEffortEdge->second;
-                }
-                else if (!objective_->isCostBetterThan(lowerBoundEdgeCost, bestCostEdge->first.estimatedCost))
-                {
-                    return bestCostEdge->second;
-                }
-                else
-                {
-                    return lowerBoundEdge->second;
-                }
-            }  // namespace eitstar
+                
+                const auto edge = pop(suboptimalityFactor);
+                insertOrUpdate(edge);
+                return edge;
+            } 
 
             void ForwardQueue::updateIfExists(const Edge &edge)
             {
@@ -261,11 +224,9 @@ namespace ompl
 
             void ForwardQueue::rebuild()
             {
-                // Update all edges.
-                for (const auto &element : queue_)
-                {
-                    updateIfExists(element.second);
-                }
+                const auto edges = getEdges();
+                clear();
+                insertOrUpdate(edges);
             }
 
             std::pair<ForwardQueue::EdgeKeys, Edge> ForwardQueue::makeElement(const Edge &edge) const
@@ -299,22 +260,18 @@ namespace ompl
             std::vector<std::pair<ForwardQueue::EdgeKeys, Edge>>::iterator ForwardQueue::getBestCostEstimateEdge()
             {
                 // Find the best estimate edge and corresponding cost.
-                return std::min_element(queue_.begin(), queue_.end(),
-                                        [this](const std::pair<EdgeKeys, Edge> &a, const std::pair<EdgeKeys, Edge> &b) {
-                                            return objective_->isCostBetterThan(a.first.estimatedCost,
-                                                                                b.first.estimatedCost);
-                                        });
+                return std::min_element(queue_.begin(), queue_.end(), [this](const auto &a, const auto &b) {
+                    return objective_->isCostBetterThan(a.first.estimatedCost, b.first.estimatedCost);
+                });
             }
 
             std::vector<std::pair<ForwardQueue::EdgeKeys, Edge>>::const_iterator
             ForwardQueue::getBestCostEstimateEdge() const
             {
                 // Find the best estimate edge and corresponding cost.
-                return std::min_element(queue_.cbegin(), queue_.cend(),
-                                        [this](const std::pair<EdgeKeys, Edge> &a, const std::pair<EdgeKeys, Edge> &b) {
-                                            return objective_->isCostBetterThan(a.first.estimatedCost,
-                                                                                b.first.estimatedCost);
-                                        });
+                return std::min_element(queue_.cbegin(), queue_.cend(), [this](const auto &a, const auto &b) {
+                    return objective_->isCostBetterThan(a.first.estimatedCost, b.first.estimatedCost);
+                });
             }
 
             ompl::base::Cost ForwardQueue::inflateCost(const ompl::base::Cost &cost, double factor) const
