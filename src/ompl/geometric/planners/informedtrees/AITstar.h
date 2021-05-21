@@ -312,15 +312,6 @@ namespace ompl
             /** \brief The number of samples per batch. */
             std::size_t batchSize_{100u};
 
-            /** \brief Flag whether to perform a reverse search iteration on the next iteration. */
-            bool performReverseSearchIteration_{true};
-
-            /** \brief Flag whether the forward search has been started on the batch. */
-            bool isForwardSearchStartedOnBatch_{false};
-
-            /** \brief The option that specifies whether to repair the reverse search when detecting a collision. */
-            bool repairReverseSearch_{true};
-
             /** \brief The option that specifies whether to track approximate solutions. */
             bool trackApproximateSolutions_{true};
 
