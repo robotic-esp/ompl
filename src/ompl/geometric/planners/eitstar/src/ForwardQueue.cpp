@@ -175,14 +175,14 @@ namespace ompl
                 }
 
                 // Return the correct edge.
-                if (!objective_->isCostBetterThan(lowerBoundEdgeCost, bestEffortEdgeCost))
+                if (objective_->isCostBetterThan(bestEffortEdgeCost, lowerBoundEdgeCost))
                 {
                     const auto edge = bestEffortEdge->second;
                     queue_.erase(bestEffortEdge);
                     edge.target->removeFromSourcesOfIncomingEdgesInForwardQueue(edge.source);
                     return edge;
                 }
-                else if (!objective_->isCostBetterThan(lowerBoundEdgeCost, bestCostEdge->first.estimatedCost))
+                else if (objective_->isCostBetterThan(bestCostEdge->first.estimatedCost, lowerBoundEdgeCost))
                 {
                     const auto edge = bestCostEdge->second;
                     edge.target->removeFromSourcesOfIncomingEdgesInForwardQueue(edge.source);
