@@ -102,15 +102,6 @@ namespace ompl
             // Check that the problem definition is set.
             if (static_cast<bool>(problem_))
             {
-                // If we were given a goal, make sure its of appropriate type.
-                if (!(problem_->getGoal()->hasType(ompl::base::GOAL_SAMPLEABLE_REGION)))
-                {
-                    OMPL_ERROR("EIT* is currently only implemented for goals that can be cast to "
-                               "ompl::base::GOAL_SAMPLEABLE_REGION.");
-                    setup_ = false;
-                    return;
-                }
-
                 // Default to path length optimization if no objective has been specified.
                 if (!problem_->hasOptimizationObjective())
                 {
@@ -121,12 +112,26 @@ namespace ompl
                         std::make_shared<ompl::base::PathLengthOptimizationObjective>(spaceInfo_));
                 }
 
+                if (static_cast<bool>(problem_->getGoal()))
+                {
+                    // If we were given a goal, make sure its of appropriate type.
+                    if (!(problem_->getGoal()->hasType(ompl::base::GOAL_SAMPLEABLE_REGION)))
+                    {
+                        OMPL_ERROR("EIT* is currently only implemented for goals that can be cast to "
+                                   "ompl::base::GOAL_SAMPLEABLE_REGION.");
+                        setup_ = false;
+                        return;
+                    }
+                }
+
                 // Pull through the optimization objective for direct access.
                 objective_ = problem_->getOptimizationObjective();
 
                 // Initialize costs to infinity.
                 solutionCost_ = objective_->infiniteCost();
                 reverseCost_ = objective_->infiniteCost();
+                approximateSolutionCost_ = objective_->infiniteCost();
+                approximateSolutionCostToGoal_ = objective_->infiniteCost();
 
                 // Instantiate the queues.
                 forwardQueue_ = std::make_unique<eitstar::ForwardQueue>(objective_, space_);
@@ -161,10 +166,16 @@ namespace ompl
         ompl::base::PlannerStatus EITstar::solve(const ompl::base::PlannerTerminationCondition &terminationCondition)
         {
             // Check that the planner and state space are setup.
-            auto status = checkSetup();
+            auto status = ensureSetup();
+
+            // Return early if the planner or state space are not setup.
+            if (status == ompl::base::PlannerStatus::StatusType::ABORT)
+            {
+                return status;
+            }
 
             // Update the status of the planner.
-            status = checkProblem(terminationCondition);
+            status = ensureStartAndGoalStates(terminationCondition);
 
             // Return early if no problem can be solved.
             if (status == ompl::base::PlannerStatus::StatusType::INVALID_START ||
@@ -190,6 +201,38 @@ namespace ompl
             // Let the caller know the status.
             informAboutPlannerStatus(status);
             return status;
+        }
+
+        void EITstar::clear()
+        {
+            forwardQueue_->clear();
+            forwardQueue_.reset();
+            reverseQueue_->clear();
+            reverseQueue_.reset();
+            objective_.reset();
+            graph_.clear();
+
+            // Reset the solution costs. Cannot use infiniteCost() before resetting the objective because the objective
+            // of a new problem definition objective might define that differently than the old.
+            solutionCost_ = ompl::base::Cost(std::numeric_limits<double>::signaling_NaN());
+            reverseCost_ = ompl::base::Cost(std::numeric_limits<double>::signaling_NaN());
+            approximateSolutionCost_ = ompl::base::Cost(std::numeric_limits<double>::signaling_NaN());
+            approximateSolutionCostToGoal_ = ompl::base::Cost(std::numeric_limits<double>::signaling_NaN());
+
+            setup_ = false;
+        }
+
+        void EITstar::clearQuery()
+        {
+            forwardQueue_->clear();
+            reverseQueue_->clear();
+            startVertices_.clear();
+            goalVertices_.clear();
+            graph_.clearQuery();
+            solutionCost_ = objective_->infiniteCost();
+            reverseCost_ = objective_->infiniteCost();
+            approximateSolutionCost_ = objective_->infiniteCost();
+            approximateSolutionCostToGoal_ = objective_->infiniteCost();
         }
 
         ompl::base::Cost EITstar::bestCost() const
@@ -582,8 +625,12 @@ namespace ompl
             }
         }
 
-        ompl::base::PlannerStatus::StatusType EITstar::checkSetup() const
+        ompl::base::PlannerStatus::StatusType EITstar::ensureSetup() const
         {
+            // Call the base planners validity check. This checks if the
+            // planner is setup if not then it calls setup().
+            checkValidity();
+
             // Ensure the planner is setup.
             if (!setup_)
             {
@@ -602,22 +649,28 @@ namespace ompl
         }
 
         ompl::base::PlannerStatus::StatusType
-        EITstar::checkProblem(const ompl::base::PlannerTerminationCondition &terminationCondition)
+        EITstar::ensureStartAndGoalStates(const ompl::base::PlannerTerminationCondition &terminationCondition)
         {
-            // Ensure the graph has a start state.
-            if (!graph_.hasStartState())
-            {
-                OMPL_WARN("%s: No solution can be found as no start states are available", name_.c_str());
-                return ompl::base::PlannerStatus::StatusType::INVALID_START;
-            }
-
-            // If the graph currently does not have a goal state, we wait until we get one.
-            if (!graph_.hasGoalState())
+            // If the graph currently does not have a start state, try to get one.
+            if (!graph_.hasAStartState())
             {
                 graph_.updateStartAndGoalStates(terminationCondition, &pis_);
 
-                // If the graph still doesn't have a goal after waiting there's nothing to solve.
-                if (!graph_.hasGoalState())
+                // If we could not get a start state, then there's nothing to solve.
+                if (!graph_.hasAStartState())
+                {
+                    OMPL_WARN("%s: No solution can be found as no start states are available", name_.c_str());
+                    return ompl::base::PlannerStatus::StatusType::INVALID_START;
+                }
+            }
+
+            // If the graph currently does not have a goal state, we wait until we get one.
+            if (!graph_.hasAGoalState())
+            {
+                graph_.updateStartAndGoalStates(terminationCondition, &pis_);
+
+                // If the graph still doesn't have a goal after waiting, then there's nothing to solve.
+                if (!graph_.hasAGoalState())
                 {
                     OMPL_WARN("%s: No solution can be found as no goal states are available", name_.c_str());
                     return ompl::base::PlannerStatus::StatusType::INVALID_GOAL;
