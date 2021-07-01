@@ -14,7 +14,7 @@
  *     copyright notice, this list of conditions and the following
  *     disclaimer in the documentation and/or other materials provided
  *     with the distribution.
- *   * Neither the name of the University of Toronto nor the names of its
+ *   * Neither the names of the copyright holders nor the names of its
  *     contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission.
  *
@@ -97,11 +97,11 @@ namespace ompl
             void setup() override;
 
             /** \brief Checks whether the planner is successfully setup. */
-            ompl::base::PlannerStatus::StatusType checkSetup() const;
+            ompl::base::PlannerStatus::StatusType ensureSetup();
 
             /** \brief Checks whether the problem is successfully setup. */
             ompl::base::PlannerStatus::StatusType
-            checkProblem(const ompl::base::PlannerTerminationCondition &terminationCondition);
+            ensureStartAndGoalStates(const ompl::base::PlannerTerminationCondition &terminationCondition);
 
             /** \brief Clears the algorithm's internal state. */
             void clear() override;
@@ -172,7 +172,6 @@ namespace ompl
             void setLocalSeed(std::uint_fast32_t localSeed);
 
         private:
-
             /** \brief Performs one iteration of AIT*. */
             void iterate(const ompl::base::PlannerTerminationCondition &terminationCondition);
 
@@ -254,7 +253,7 @@ namespace ompl
 
             /** \brief Checks which vertex is the best approximate solution. */
             void updateApproximateSolution();
-            
+
             /** \brief Updates the exact solution and if AIT* track approximate solutions, it updates it as well. */
             ompl::base::PlannerStatus::StatusType updateSolution();
 

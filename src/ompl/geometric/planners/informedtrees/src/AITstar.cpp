@@ -14,7 +14,7 @@
  *     copyright notice, this list of conditions and the following
  *     disclaimer in the documentation and/or other materials provided
  *     with the distribution.
- *   * Neither the name of the University of Toronto nor the names of its
+ *   * Neither the names of the copyright holders nor the names of its
  *     contributors may be used to endorse or promote products derived
  *     from this software without specific prior written permission.
  *
@@ -142,19 +142,23 @@ namespace ompl
             }
         }
 
-        ompl::base::PlannerStatus::StatusType AITstar::checkSetup() const
+        ompl::base::PlannerStatus::StatusType AITstar::ensureSetup()
         {
+            // Call the base planners validity check. This checks if the
+            // planner is setup if not then it calls setup().
+            checkValidity();
+
             // Ensure the planner is setup.
             if (!setup_)
             {
-                OMPL_ERROR("%s: Called solve without setting up the planner first.", name_.c_str());
+                OMPL_ERROR("%s: The planner is not setup.", name_.c_str());
                 return ompl::base::PlannerStatus::StatusType::ABORT;
             }
 
             // Ensure the space is setup.
             if (!si_->isSetup())
             {
-                OMPL_ERROR("%s: Called solve without setting up the state space first.", name_.c_str());
+                OMPL_ERROR("%s: The space information is not setup.", name_.c_str());
                 return ompl::base::PlannerStatus::StatusType::ABORT;
             }
 
@@ -162,7 +166,7 @@ namespace ompl
         }
 
         ompl::base::PlannerStatus::StatusType
-        AITstar::checkProblem(const ompl::base::PlannerTerminationCondition &terminationCondition)
+        AITstar::ensureStartAndGoalStates(const ompl::base::PlannerTerminationCondition &terminationCondition)
         {
             // If the graph currently does not have a start state, try to get one.
             if (!graph_.hasAStartState())
@@ -205,15 +209,22 @@ namespace ompl
             numIterations_ = 0u;
             numInconsistentOrUnconnectedTargets_ = 0u;
             Planner::clear();
+            setup_ = false;
         }
 
         ompl::base::PlannerStatus AITstar::solve(const ompl::base::PlannerTerminationCondition &terminationCondition)
         {
-            // Check that the planner and state space are setup.
-            auto status = checkSetup();
+            // Ensure that the planner and state space are setup before solving.
+            auto status = ensureSetup();
 
-            // The planner status to return.
-            status = checkProblem(terminationCondition);
+            // Return early if the planner or state space are not setup.
+            if (status == ompl::base::PlannerStatus::StatusType::ABORT)
+            {
+                return status;
+            }
+
+            // Ensure that the problem has start and goal states before solving.
+            status = ensureStartAndGoalStates(terminationCondition);
 
             // Return early if the problem cannot be solved.
             if (status == ompl::base::PlannerStatus::StatusType::INVALID_START ||
