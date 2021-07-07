@@ -82,6 +82,9 @@ namespace ompl
                 void updateStartAndGoalStates(const ompl::base::PlannerTerminationCondition &terminationCondition,
                                               ompl::base::PlannerInputStates *inputStates);
 
+                /** \brief Returns the minimum possible cost for the current problem. */
+                ompl::base::Cost minPossibleCost() const;
+
                 /** \brief Sets the radius factor. */
                 void setRadiusFactor(double factor);
 
@@ -172,8 +175,9 @@ namespace ompl
                 /** \brief Returns the number of states in the informed set. */
                 std::size_t countSamplesInInformedSet() const;
 
-                /** \brief Returns whether a state can possibly improve the current solution. */
-                bool canPossiblyImproveSolution(const std::shared_ptr<State> &state) const;
+                /** \brief Returns whether a state can be pruned because it cannot possibly be part of a solution equal
+                 * to or better than the current solution. */
+                bool canBePruned(const std::shared_ptr<State> &state) const;
 
                 /** \brief Returns the heuristic cost from the preferred start of a state. */
                 ompl::base::Cost lowerBoundCostToCome(const std::shared_ptr<State> &state) const;
@@ -261,6 +265,9 @@ namespace ompl
 
                 /** \brief The cost of the incumbent solution. */
                 const ompl::base::Cost &solutionCost_;
+
+                /** \brief The minimum possible cost for this problem. */
+                ompl::base::Cost minPossibleCost_{std::numeric_limits<double>::signaling_NaN()};
 
                 /** \brief The number of sampled states. */
                 mutable unsigned int numSampledStates_{0u};

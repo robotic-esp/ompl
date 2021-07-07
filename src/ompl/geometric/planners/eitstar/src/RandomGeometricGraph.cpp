@@ -81,12 +81,9 @@ namespace ompl
 
             void RandomGeometricGraph::clear()
             {
-                problem_.reset();
-                objective_.reset();
-                sampler_.reset();
-                k_rgg_ = std::numeric_limits<std::size_t>::max();
-                numNeighbors_ = std::numeric_limits<std::size_t>::max();
+                tag_ = 1u;
                 radius_ = std::numeric_limits<double>::infinity();
+                numNeighbors_ = std::numeric_limits<std::size_t>::max();
                 samples_.clear();
                 newSamples_.clear();
                 startStates_.clear();
@@ -107,8 +104,7 @@ namespace ompl
                 const ompl::base::PlannerTerminationCondition &terminationCondition,
                 ompl::base::PlannerInputStates *inputStates)
             {
-                // We need to keep track of whether a new goal and/or a new start has been added when calling this
-                // function.
+                // We need to keep track of whether a new goal and/or a new start has been added.
                 bool addedNewStartState = false;
                 bool addedNewGoalState = false;
 
@@ -198,7 +194,7 @@ namespace ompl
                                 heuristicCost, objective_->motionCostHeuristic(goal->raw(), (*it)->raw()));
                         }
 
-                        // If this goal can possibly improve the current solution, add it back to the graph.
+                        // If this start can possibly improve the current solution, add it back to the graph.
                         if (objective_->isCostBetterThan(heuristicCost, solutionCost_))
                         {
                             registerStartState((*it)->raw());
@@ -207,7 +203,7 @@ namespace ompl
                         }
                     }
 
-                    // Remove all revived goals from the pruned goals.
+                    // Remove all revived starts from the pruned starts.
                     for (auto &revivedStart : revivedStarts)
                     {
                         std::iter_swap(revivedStart, prunedStartStates_.rbegin());
@@ -230,6 +226,23 @@ namespace ompl
                     OMPL_WARN("EIT*: The problem has a goal but not a start. EIT* can not find a solution since "
                               "PlannerInputStates provides no method to wait for a valid start state to appear.");
                 }
+
+                // Compute the minimum possible cost for this problem given the start and goal states and an admissible
+                // cost heuristic.
+                minPossibleCost_ = objective_->infiniteCost();
+                for (const auto &start : startStates_)
+                {
+                    for (const auto &goal : goalStates_)
+                    {
+                        minPossibleCost_ = objective_->betterCost(
+                            minPossibleCost_, objective_->motionCostHeuristic(start->raw(), goal->raw()));
+                    }
+                }
+            }
+
+            ompl::base::Cost RandomGeometricGraph::minPossibleCost() const
+            {
+                return minPossibleCost_;
             }
 
             void RandomGeometricGraph::setRadiusFactor(double factor)
@@ -555,7 +568,7 @@ namespace ompl
                 // Check each sample if it can be pruned.
                 for (const auto &sample : samples)
                 {
-                    if (!canPossiblyImproveSolution(sample))
+                    if (canBePruned(sample))
                     {
                         if (isStart(sample))
                         {
@@ -613,16 +626,16 @@ namespace ompl
                 // Count the number of samples that can possibly improve the solution and subtract the start and goal
                 // states from this number, as they're not technically uniformly distributed.
                 return std::count_if(samples.begin(), samples.end(),
-                                     [this](const auto &sample) { return canPossiblyImproveSolution(sample); }) -
+                                     [this](const auto &sample) { return !canBePruned(sample); }) -
                        startStates_.size() - goalStates_.size();
             }
 
-            bool RandomGeometricGraph::canPossiblyImproveSolution(const std::shared_ptr<State> &state) const
+            bool RandomGeometricGraph::canBePruned(const std::shared_ptr<State> &state) const
             {
-                // If it is infinite, any state can improve it.
+                // If we don't have a solution, no state can be pruned.
                 if (!objective_->isFinite(solutionCost_))
                 {
-                    return true;
+                    return false;
                 }
                 else
                 {
@@ -632,9 +645,8 @@ namespace ompl
                     // Get the heuristic cost to go.
                     const auto costToGo = lowerBoundCostToGo(state);
 
-                    // Return whether the heuristic cost to come and the heuristic cost to go is better than the current
-                    // cost.
-                    return objective_->isCostBetterThan(objective_->combineCosts(costToCome, costToGo), solutionCost_);
+                    // Return whether the current solution is better than the lower bound potential solution.
+                    return objective_->isCostBetterThan(solutionCost_, objective_->combineCosts(costToCome, costToGo));
                 }
             }
 
@@ -677,39 +689,33 @@ namespace ompl
 
             void RandomGeometricGraph::initializeState(const std::shared_ptr<State> &state)
             {
-                // Set the current cost to come.
-                state->setCurrentCostToCome(objective_->infiniteCost());
-
                 // Set the lower bounds.
                 state->setLowerBoundCostToCome(lowerBoundCostToCome(state));
                 state->setLowerBoundEffortToCome(lowerBoundEffortToCome(state));
                 state->setLowerBoundCostToGo(lowerBoundCostToGo(state));
 
-                if (problem_->getGoal()->isSatisfied(state->raw()))
+                // Set the current cost to come.
+                if (isStart(state))
                 {
-                    // Set the cost to go estimate admissible for the approximation.
+                    state->setCurrentCostToCome(objective_->identityCost());
+                }
+                else
+                {
+                    state->setCurrentCostToCome(objective_->infiniteCost());
+                }
+
+                // Set the estimated heuristics.
+                if (isGoal(state))
+                {
                     state->setAdmissibleCostToGo(objective_->identityCost());
-
-                    // Set the estimated cost to go.
                     state->setEstimatedCostToGo(objective_->identityCost());
-
-                    // Set the estimated effort to go.
                     state->setEstimatedEffortToGo(0u);
                 }
                 else
                 {
-                    // Set the admissible cost to go.
                     state->setAdmissibleCostToGo(objective_->infiniteCost());
-
-                    // Set the estimated cost to go.
                     state->setEstimatedCostToGo(objective_->infiniteCost());
-
-                    // Set the estimated effort to go.
                     state->setEstimatedEffortToGo(std::numeric_limits<std::size_t>::max());
-                }
-
-                if (isStart(state)) {
-                    state->setCurrentCostToCome(objective_->identityCost());
                 }
             }
 
@@ -723,11 +729,11 @@ namespace ompl
                 // Compute and return the radius. Note to self: double / int -> double. You looked it up. It's fine.
 
                 // RRT*
-                return radiusFactor_ *
-                       std::pow(2.0 * (1.0 + 1.0 / dimension_) *
-                                    (sampler_->getInformedMeasure(solutionCost_) / unitNBallMeasure_) *
-                                    (std::log(static_cast<double>(numInformedSamples)) / numInformedSamples),
-                                1.0 / dimension_);
+                // return radiusFactor_ *
+                //        std::pow(2.0 * (1.0 + 1.0 / dimension_) *
+                //                     (sampler_->getInformedMeasure(solutionCost_) / unitNBallMeasure_) *
+                //                     (std::log(static_cast<double>(numInformedSamples)) / numInformedSamples),
+                //                 1.0 / dimension_);
 
                 // FMT*
                 // return 2.0 * radiusFactor_ *
@@ -737,11 +743,11 @@ namespace ompl
                 //                 1.0 / dimension_);
 
                 // PRM*
-                // return radiusFactor_ * 2.0 *
-                //        std::pow((1.0 + 1.0 / dimension_) *
-                //                     (sampler_->getInformedMeasure(solutionCost_) / unitNBallMeasure_) *
-                //                     (std::log(static_cast<double>(numInformedSamples)) / numInformedSamples),
-                //                 1.0 / dimension_);
+                return radiusFactor_ * 2.0 *
+                       std::pow((1.0 + 1.0 / dimension_) *
+                                    (sampler_->getInformedMeasure(solutionCost_) / unitNBallMeasure_) *
+                                    (std::log(static_cast<double>(numInformedSamples)) / numInformedSamples),
+                                1.0 / dimension_);
             }
 
         }  // namespace eitstar

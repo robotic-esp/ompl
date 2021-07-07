@@ -174,7 +174,7 @@ namespace ompl
                 return status;
             }
 
-            // Update the status of the planner.
+            // Ensure that the problem has start and goal states before solving.
             status = ensureStartAndGoalStates(terminationCondition);
 
             // Return early if no problem can be solved.
@@ -188,8 +188,8 @@ namespace ompl
             OMPL_INFORM("%s: Solving the given planning problem. The current best solution cost is %.4f", name_.c_str(),
                         solutionCost_.value());
 
-            // Iterate until stopped or objective is satisfied.
-            while (!terminationCondition && !objective_->isSatisfied(solutionCost_))
+            // Iterate while we should continue solving the problem.
+            while (continueSolving(terminationCondition))
             {
                 iterate(terminationCondition);
             }
@@ -205,10 +205,18 @@ namespace ompl
 
         void EITstar::clear()
         {
-            forwardQueue_->clear();
-            forwardQueue_.reset();
-            reverseQueue_->clear();
-            reverseQueue_.reset();
+            if (forwardQueue_)
+            {
+                forwardQueue_->clear();
+            }
+
+            if (reverseQueue_)
+            {
+                reverseQueue_->clear();
+            }
+
+            startVertices_.clear();
+            goalVertices_.clear();
             objective_.reset();
             graph_.clear();
 
@@ -219,6 +227,14 @@ namespace ompl
             approximateSolutionCost_ = ompl::base::Cost(std::numeric_limits<double>::signaling_NaN());
             approximateSolutionCostToGoal_ = ompl::base::Cost(std::numeric_limits<double>::signaling_NaN());
 
+            // Reset the tags.
+            reverseSearchTag_ = 1u;
+            startExpansionGraphTag_ = 0u;
+            numSparseCollisionChecksCurrentLevel_ = initialNumSparseCollisionChecks_;
+            numSparseCollisionChecksPreviousLevel_ = 0u;
+            suboptimalityFactor_ = std::numeric_limits<double>::infinity();
+
+            Planner::clear();
             setup_ = false;
         }
 
@@ -698,6 +714,48 @@ namespace ompl
             }
         }
 
+        std::shared_ptr<ompl::geometric::PathGeometric>
+        EITstar::getPathToState(const std::shared_ptr<eitstar::State> &state) const
+        {
+            // Allocate a vector for states. The append function of the path inserts states in front of an
+            // std::vector, which is not very efficient. I'll rather iterate over the vector in reverse.
+            std::vector<std::shared_ptr<State>> states;
+            auto current = state;
+
+            // Collect all states in reverse order of the path (starting from the goal).
+            while (!graph_.isStart(current))
+            {
+                assert(current->asForwardVertex()->getParent().lock());
+                states.emplace_back(current);
+                current = current->asForwardVertex()->getParent().lock()->getState();
+            }
+            states.emplace_back(current);
+
+            // Append all states to the path in correct order (starting from the start).
+            auto path = std::make_shared<ompl::geometric::PathGeometric>(spaceInfo_);
+            for (auto it = states.crbegin(); it != states.crend(); ++it)
+            {
+                assert(*it);
+                assert((*it)->raw());
+                path->append((*it)->raw());
+            }
+
+            return path;
+        }
+
+        bool EITstar::continueSolving(const ompl::base::PlannerTerminationCondition &terminationCondition) const
+        {
+            // We stop solving the problem if:
+            //   - The termination condition is satisfied; or
+            //   - The current solution satisfies the objective; or
+            //   - There is no better solution to be found for the current start goal pair and no new starts or
+            //     goals are available
+            // We continue solving the problem if we don't stop solving.
+            return !(terminationCondition || objective_->isSatisfied(solutionCost_) ||
+                     (!isBetter(graph_.minPossibleCost(), solutionCost_) && !pis_.haveMoreStartStates() &&
+                      !pis_.haveMoreGoalStates()));
+        }
+
         bool EITstar::continueReverseSearch() const
         {
             // Never continue the reverse search if the reverse queue is empty.
@@ -828,13 +886,10 @@ namespace ompl
 
         void EITstar::updateExactSolution(const std::shared_ptr<eitstar::State> &goal)
         {
-            // Throw if the reverse root does not have a forward vertex.
-            assert(goal->hasForwardVertex());
-
             // We update the current goal if
-            //   1. We currently don't have a goal; or
-            //   2. The new goal has a better cost to come than the old goal
-            if (isBetter(goal->getCurrentCostToCome(), solutionCost_))
+            //   1. The new goal has a better cost to come than the old goal
+            //   2. Or the exact solution we found is no longer registered with the problem definition
+            if (isBetter(goal->getCurrentCostToCome(), solutionCost_) || !problem_->hasExactSolution())
             {
                 if (!std::isfinite(suboptimalityFactor_))
                 {
@@ -844,33 +899,8 @@ namespace ompl
                 // Update the best cost.
                 solutionCost_ = goal->getCurrentCostToCome();
 
-                // Allocate the path.
-                auto path = std::make_shared<ompl::geometric::PathGeometric>(spaceInfo_);
-
-                // Allocate a vector for states. The append function of the path inserts states in front of an
-                // std::vector, which is not very efficient. I'll rather iterate over the vector in reverse.
-                std::vector<std::shared_ptr<State>> states;
-                auto current = goal;
-
-                // Collect all states in reverse order of the path (starting from the goal).
-                while (!graph_.isStart(current))
-                {
-                    assert(current->asForwardVertex()->getParent().lock());
-                    states.emplace_back(current);
-                    current = current->asForwardVertex()->getParent().lock()->getState();
-                }
-                states.emplace_back(current);
-
-                // Append all states to the path in correct order (starting from the start).
-                for (auto it = states.crbegin(); it != states.crend(); ++it)
-                {
-                    assert(*it);
-                    assert((*it)->raw());
-                    path->append((*it)->raw());
-                }
-
                 // Register this solution with the problem definition.
-                ompl::base::PlannerSolution solution(path);
+                ompl::base::PlannerSolution solution(getPathToState(goal));
                 solution.setPlannerName(name_);
                 solution.setOptimized(objective_, solutionCost_, objective_->isSatisfied(solutionCost_));
                 problem_->addSolutionPath(solution);
@@ -881,19 +911,33 @@ namespace ompl
                 {
                     suboptimalityFactor_ = 1.0;
                 }
+
+                // Let the user know about the new solution.
+                informAboutNewSolution();
             }
         }
 
         void EITstar::updateApproximateSolution(const std::shared_ptr<eitstar::State> &state)
         {
             assert(trackApproximateSolutions_);
-            if (state->hasForwardVertex() || graph_.isStart(state))
+            if ((state->hasForwardVertex() || graph_.isStart(state)) && !graph_.isGoal(state))
             {
                 const auto costToGoal = computeCostToGoToGoal(state);
-                if (isBetter(costToGoal, approximateSolutionCostToGoal_))
+                if (isBetter(costToGoal, approximateSolutionCostToGoal_) || !problem_->hasSolution())
                 {
                     approximateSolutionCost_ = state->getCurrentCostToCome();
                     approximateSolutionCostToGoal_ = costToGoal;
+                    ompl::base::PlannerSolution solution(getPathToState(state));
+                    solution.setPlannerName(name_);
+
+                    // Set the approximate flag.
+                    solution.setApproximate(costToGoal.value());
+
+                    // This solution is approximate and can not satisfy the objective.
+                    solution.setOptimized(objective_, approximateSolutionCost_, false);
+
+                    // Let the problem definition know that a new solution exists.
+                    pdef_->addSolutionPath(solution);
                 }
             }
         }
@@ -1131,24 +1175,11 @@ namespace ompl
             // Test states while there are states to be tested.
             while (!indices.empty())
             {
-                // Get the current segment and remove if from the queue.
+                // Get the current segment.
                 const auto current = indices.front();
-                indices.pop();
 
                 // Get the midpoint of the segment.
                 auto mid = (current.first + current.second) / 2;
-
-                // Create the first half of the split segment if necessary.
-                if (current.first < mid)
-                {
-                    indices.emplace(current.first, mid - 1u);
-                }
-
-                // Create the second half of the split segment if necessary.
-                if (current.second > mid)
-                {
-                    indices.emplace(mid + 1u, current.second);
-                }
 
                 // Only do the detection if we haven't tested this state on a previous level.
                 if (currentCheck > performedChecks)
@@ -1168,14 +1199,27 @@ namespace ompl
                     }
                 }
 
+                // Remove the current segment from the queue.
+                indices.pop();
+
+                // Create the first or second half of the split segment if necessary.
+                if (current.first < mid)
+                {
+                    indices.emplace(current.first, mid - 1u);
+                }
+                else if (current.second > mid)
+                {
+                    indices.emplace(mid + 1u, current.second);
+                }
+
                 // Increase the current check number.
                 ++currentCheck;
             }
 
             // Remember at what resolution this edge was already checked. We're assuming that the number of collision
             // checks is symmetric for each edge.
-            edge.source->setIncomingCollisionCheckResolution(edge.target, currentCheck);
-            edge.target->setIncomingCollisionCheckResolution(edge.source, currentCheck);
+            edge.source->setIncomingCollisionCheckResolution(edge.target, currentCheck - 1u);
+            edge.target->setIncomingCollisionCheckResolution(edge.source, currentCheck - 1u);
 
             // Whitelist this edge if it was checked at full resolution.
             if (segmentCount == fullSegmentCount)
