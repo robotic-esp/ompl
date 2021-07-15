@@ -289,6 +289,12 @@ namespace ompl
                 return nn_;
             }
 
+            ompl::base::Cost bestCost() const
+            {
+                return bestCost_;
+            }
+
+
         protected:
             /** \brief Free all the memory allocated by the planner */
             void freeMemory();

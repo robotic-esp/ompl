@@ -252,6 +252,10 @@ void ompl::geometric::LazyPRM::clearQuery()
     startM_.clear();
     goalM_.clear();
     pis_.restart();
+
+    if (opt_){
+      bestCost_ = opt_->infiniteCost();
+    }
 }
 
 void ompl::geometric::LazyPRM::clearValidity()

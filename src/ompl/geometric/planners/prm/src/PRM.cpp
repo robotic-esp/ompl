@@ -232,6 +232,11 @@ void ompl::geometric::PRM::clearQuery()
     startM_.clear();
     goalM_.clear();
     pis_.restart();
+
+    if (opt_)
+    {
+        bestCost_ = opt_->infiniteCost();
+    }
 }
 
 void ompl::geometric::PRM::clear()
@@ -419,6 +424,7 @@ bool ompl::geometric::PRM::maybeConstructSolution(const std::vector<Vertex> &sta
                     base::Cost pathCost = p->cost(opt_);
                     if (opt_->isCostBetterThan(pathCost, bestCost_))
                         bestCost_ = pathCost;
+
                     // Check if optimization objective is satisfied
                     if (opt_->isSatisfied(pathCost))
                     {
