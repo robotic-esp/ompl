@@ -761,15 +761,12 @@ namespace ompl
 
         bool EITstar::continueReverseSearch() const
         {
-            // Never continue the reverse search if the reverse queue is empty.
-            if (reverseQueue_->empty())
+            // Never continue the reverse search if the reverse or forward queues are empty. There's nothing to continue
+            // in the reverse search, if the reverse queue is empty. There's nothing to continue in the forward search,
+            // if the forward queue is empty and continuing the reverse search cannot insert edges in the forward queue.
+            if (reverseQueue_->empty() || forwardQueue_->empty())
             {
                 return false;
-            }
-            // Always continue the reverse search if the reverse queue is not empty but the forward queue is.
-            else if (forwardQueue_->empty())
-            {
-                return true;
             }
 
             /*
@@ -1210,7 +1207,7 @@ namespace ompl
                 {
                     indices.emplace(current.first, mid - 1u);
                 }
-                
+
                 if (current.second > mid)
                 {
                     indices.emplace(mid + 1u, current.second);
