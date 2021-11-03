@@ -34,12 +34,12 @@
 
 // Authors: Marlin Strub
 
-#include "ompl/geometric/planners/eitstar/ReverseQueue.h"
+#include "ompl/geometric/planners/informedtrees/eitstar/ReverseQueue.h"
 
 #include <utility>
 
-#include "ompl/geometric/planners/eitstar/Direction.h"
-#include "ompl/geometric/planners/eitstar/State.h"
+#include "ompl/geometric/planners/informedtrees/eitstar/Direction.h"
+#include "ompl/geometric/planners/informedtrees/eitstar/State.h"
 
 namespace ompl
 {
@@ -156,9 +156,9 @@ namespace ompl
 
             ompl::base::Cost ReverseQueue::computeAdmissibleCostToComeToTarget(const Edge &edge) const
             {
-                return  objective_->combineCosts(edge.source->getAdmissibleCostToGo(),
-                                                 objective_->motionCostHeuristic(edge.target->raw(),
-                                                                                 edge.source->raw()));
+                return objective_->combineCosts(
+                    edge.source->getAdmissibleCostToGo(),
+                    objective_->motionCostHeuristic(edge.target->raw(), edge.source->raw()));
             }
 
             unsigned int ReverseQueue::computeAdmissibleSolutionEffort(const Edge &edge) const
