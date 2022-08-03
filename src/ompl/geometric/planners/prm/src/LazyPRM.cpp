@@ -252,6 +252,10 @@ void ompl::geometric::LazyPRM::clearQuery()
     startM_.clear();
     goalM_.clear();
     pis_.restart();
+
+    if (opt_){
+      bestCost_ = opt_->infiniteCost();
+    }
 }
 
 void ompl::geometric::LazyPRM::clearValidity()
@@ -640,4 +644,24 @@ void ompl::geometric::LazyPRM::getPlannerData(base::PlannerData &data) const
         data.tagState(stateProperty_[v1], (vertexValidityProperty_[v1] & VALIDITY_TRUE) == 0 ? 0 : 1);
         data.tagState(stateProperty_[v2], (vertexValidityProperty_[v2] & VALIDITY_TRUE) == 0 ? 0 : 1);
     }
+}
+
+std::vector<std::pair<ompl::base::PlannerDataVertex, ompl::base::PlannerDataVertex>> ompl::geometric::LazyPRM::getValidEdges() const 
+{
+    std::vector<std::pair<base::PlannerDataVertex, base::PlannerDataVertex>> edges;
+    
+    // Adding edges and all other vertices simultaneously
+    foreach (const Edge e, boost::edges(g_))
+    {
+        if ((edgeValidityProperty_[e] & VALIDITY_TRUE) == 1){
+            const Vertex v1 = boost::source(e, g_);
+            const Vertex v2 = boost::target(e, g_);
+
+            edges.emplace_back(std::make_pair(
+                  base::PlannerDataVertex(stateProperty_[v1]), 
+                  base::PlannerDataVertex(stateProperty_[v2])));
+        }
+    }
+    
+    return edges;
 }

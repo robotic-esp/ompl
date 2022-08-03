@@ -233,6 +233,7 @@ namespace ompl
             }
 
             void getPlannerData(base::PlannerData &data) const override;
+            std::vector<std::pair<base::PlannerDataVertex, base::PlannerDataVertex>> getValidEdges() const;
 
             void setup() override;
 

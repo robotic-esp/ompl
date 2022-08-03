@@ -224,6 +224,11 @@ namespace ompl
             /** \brief Destructor */
             ~SPARStwo() override;
 
+            ompl::base::Cost bestCost() const
+            {
+                return bestCost_;
+            }
+
             void setProblemDefinition(const base::ProblemDefinitionPtr &pdef) override;
 
             /** \brief Sets the stretch factor */
