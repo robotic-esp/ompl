@@ -413,6 +413,18 @@ namespace ompl
             return edges;
         }
 
+        bool EITstar::isForwardQueueEmpty() const
+        {
+            assert(forwardQueue_);
+            return forwardQueue_->empty();
+        }
+
+        bool EITstar::isReverseQueueEmpty() const
+        {
+            assert(reverseQueue_);
+            return reverseQueue_->empty();
+        }
+
         Edge EITstar::getNextForwardEdge() const
         {
             assert(forwardQueue_);

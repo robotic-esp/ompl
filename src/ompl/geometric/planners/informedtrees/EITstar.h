@@ -169,6 +169,12 @@ namespace ompl
             /** \brief Returns copies of the edges in the reverse tree. */
             std::vector<eitstar::Edge> getReverseTree() const;
 
+            /** \brief Returns whether the forward queue is empty. */
+            bool isForwardQueueEmpty() const;
+
+            /** \brief Returns whether the reverse queue is empty. */
+            bool isReverseQueueEmpty() const;
+
             /** \brief Returns the next edge in the forward queue. */
             eitstar::Edge getNextForwardEdge() const;
 
