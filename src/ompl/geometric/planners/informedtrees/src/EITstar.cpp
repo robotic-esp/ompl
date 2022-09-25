@@ -637,8 +637,15 @@ namespace ompl
                                    [&source](const auto &e) { return e.target->getId() == source->getId(); }),
                     outgoingEdges.end());
 
-                // Simply expand the target into the queue.
-                reverseQueue_->insertOrUpdate(outgoingEdges);
+                // If there are no outoing edges from the target state, we can nosider it expanded.
+                if (outgoingEdges.empty())
+                {
+                    target->asReverseVertex()->registerExpansionInReverseSearch(reverseSearchTag_);
+                }
+                else  // If there are outgoing edge, add them to or update them in the reverse queue.
+                {
+                    reverseQueue_->insertOrUpdate(outgoingEdges);
+                }
 
                 return;
             }
@@ -714,7 +721,15 @@ namespace ompl
                                        }),
                         outgoingEdges.end());
 
-                    reverseQueue_->insertOrUpdate(outgoingEdges);
+                    // If there are no outoing edges from the target state, we can nosider it expanded.
+                    if (outgoingEdges.empty())
+                    {
+                        target->asReverseVertex()->registerExpansionInReverseSearch(reverseSearchTag_);
+                    }
+                    else  // If there are outgoing edge, add them to or update them in the reverse queue.
+                    {
+                        reverseQueue_->insertOrUpdate(outgoingEdges);
+                    }
                 }
             }
         }
