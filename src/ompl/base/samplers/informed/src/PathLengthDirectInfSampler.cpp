@@ -118,20 +118,21 @@ namespace ompl
             }
             else if (InformedSampler::space_->isCompound())
             {
-                // Check that it is SE2 or SE3
-                if (InformedSampler::space_->getType() == STATE_SPACE_SE2 ||
-                    InformedSampler::space_->getType() == STATE_SPACE_SE3)
-                {
-                    // Variable:
-                    // An ease of use upcasted pointer to the space as a compound space
-                    const CompoundStateSpace *compoundSpace = InformedSampler::space_->as<CompoundStateSpace>();
+                // Variable:
+                // An ease of use upcasted pointer to the space as a compound space
+                const CompoundStateSpace *compoundSpace = InformedSampler::space_->as<CompoundStateSpace>();
 
+                // Check that the given space is SE2, SE3, Dubins, or Reeds-Shepp.
+                if (InformedSampler::space_->getType() == STATE_SPACE_SE2 ||
+                    InformedSampler::space_->getType() == STATE_SPACE_SE3 ||
+                    InformedSampler::space_->getType() == STATE_SPACE_DUBINS ||
+                    InformedSampler::space_->getType() == STATE_SPACE_REEDS_SHEPP)
+                {
                     // Sanity check
                     if (compoundSpace->getSubspaceCount() != 2u)
                     {
                         // Pout
-                        throw Exception("The provided compound StateSpace is SE(2) or SE(3) but does not have exactly "
-                                        "2 subspaces.");
+                        throw Exception("The provided compound state space does not have exactly 2 subspaces.");
                     }
 
                     // Iterate over the state spaces, finding the real vector and SO components.
@@ -154,14 +155,28 @@ namespace ompl
                         else
                         {
                             // Pout
-                            throw Exception("The provided compound StateSpace is SE(2) or SE(3) but contains a "
-                                            "subspace that is not R^2, R^3, SO(2), or SO(3).");
+                            throw Exception("The provided compound state space contains a subspace (" +
+                                            std::to_string(idx) + ") that is not R^N, SO(2), or SO(3): " +
+                                            std::to_string(compoundSpace->getSubspace(idx)->getType()));
                         }
                     }
                 }
                 else
                 {
-                    throw Exception("PathLengthDirectInfSampler only supports RealVector, SE2 and SE3 statespaces.");
+                    // Case where we have a compound state space with only one subspace, and said subspace being R^N
+                    if (compoundSpace->getSubspaceCount() == 1u &&
+                        compoundSpace->getSubspace(0)->getType() == STATE_SPACE_REAL_VECTOR)
+                    {
+                        informedIdx_ = 0u;
+                        uninformedIdx_ = 0u;
+                    }
+                    else
+                    {
+                        throw Exception("PathLengthDirectInfSampler only supports RealVector, SE2, SE3, Dubins, and "
+                                        "ReedsShepp state spaces. Provided compound state space of type: " +
+                                        std::to_string(InformedSampler::space_->getType()) + " with " +
+                                        std::to_string(compoundSpace->getSubspaceCount()) + " subspaces.");
+                    }
                 }
             }
 
