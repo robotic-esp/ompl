@@ -344,7 +344,7 @@ ompl::base::PlannerStatus ompl::geometric::RRTXdynamic::solve(const base::Planne
         }
 
         // Check if the motion between the nearest state and the state to add is valid
-        if (si_->checkMotion(nmotion->state, dstate))
+        if (checkMotionWithGuarantees(nmotion->state, dstate))
         {
             // create a motion
             motion = new Motion(si_);
@@ -369,7 +369,7 @@ ompl::base::PlannerStatus ompl::geometric::RRTXdynamic::solve(const base::Planne
                 {
                     // Check range and feasibility
                     if ((!useKNearest_ || distanceFunction(motion, nb) < maxDistance_) &&
-                        si_->checkMotion(nb->state, motion->state))
+                        checkMotionWithGuarantees(nb->state, motion->state))
                     {
                         // mark than the motino has been checked as valid
                         it->second = true;
@@ -613,7 +613,7 @@ void ompl::geometric::RRTXdynamic::reduceInconsistency(bool earlyExit, unsigned 
                     // changing parent, check feasibility
                     if (!feas)
                     {
-                        feas = si_->checkMotion(nb->state, min->state);
+                        feas = checkMotionWithGuarantees(min->state, nb->state);
                         if (!feas)
                         {
                             // Remove unfeasible neighbor from the list of neighbors
@@ -717,7 +717,7 @@ void ompl::geometric::RRTXdynamic::updateObstacles()
 
             // Use the state space’s checkMotion to test the edge.
             // (This function returns true if the motion from the first state to the second is collision-free.)
-            if (!si_->checkMotion(m->parent->state, m->state))
+            if (!checkMotionWithGuarantees(m->parent->state, m->state))
             {
                 // The edge is no longer feasible. Invalidate by setting cost to infinite.
                 m->cost = opt_->infiniteCost();
@@ -765,7 +765,7 @@ void ompl::geometric::RRTXdynamic::updateObstacles()
                 continue;
             }
             // Re-check the motion feasibility if we haven't already (or always re-check if you prefer)
-            if (!si_->checkMotion(m->state, nb->state))
+            if (!checkMotionWithGuarantees(m->state, nb->state))
             {
 
                 it->second = false;
@@ -797,9 +797,9 @@ void ompl::geometric::RRTXdynamic::updateObstacles()
     
     // Finally, run reduceInconsistency to rewire the tree (our refactored cost propagation function).
     // TODO: confirm whether these parameters should be changed...
-    uint dummyRewireTest = 0;
-    bool dummyCheckForSolution = false;
-    reduceInconsistency(false, dummyRewireTest, dummyCheckForSolution);
+    // uint dummyRewireTest = 0;
+    // bool dummyCheckForSolution = false;
+    // reduceInconsistency(false, dummyRewireTest, dummyCheckForSolution);
 }
 
 /*
@@ -1130,4 +1130,65 @@ void ompl::geometric::RRTXdynamic::calculateRewiringLowerBounds()
     r_rrt_ = rewireFactor_ *
              std::pow(2 * (1.0 + 1.0 / dimDbl) * (si_->getSpaceMeasure() / unitNBallMeasure(si_->getStateDimension())),
                       1.0 / dimDbl);
+}
+
+// Add new edge management functions:
+std::vector<std::pair<ompl::base::State*, ompl::base::State*>> ompl::geometric::RRTXdynamic::getAllTreeEdges() const {
+    std::vector<std::pair<ompl::base::State*, ompl::base::State*>> allEdges;
+    
+    std::vector<Motion*> motions;
+    if (nn_)
+        nn_->list(motions);
+    
+    // Add all parent-child edges
+    for (const auto& motion : motions) {
+        if (motion->parent) {
+            allEdges.emplace_back(motion->parent->state, motion->state);
+        }
+    }
+    
+    // Add all neighbor edges
+    for (const auto& motion : motions) {
+        for (const auto& [neighbor, _] : motion->nbh) {
+            allEdges.emplace_back(motion->state, neighbor->state);
+        }
+    }
+    
+    return allEdges;
+}
+
+void ompl::geometric::RRTXdynamic::markEdgeAsGuaranteed(base::State* from, base::State* to) {
+    auto edge = std::make_pair(from, to);
+    guaranteedEdges_.insert(edge);
+    nonGuaranteedEdges_.erase(edge);
+}
+
+void ompl::geometric::RRTXdynamic::markEdgeAsNonGuaranteed(base::State* from, base::State* to) {
+    auto edge = std::make_pair(from, to);
+    nonGuaranteedEdges_.insert(edge);
+    guaranteedEdges_.erase(edge);
+}
+
+bool ompl::geometric::RRTXdynamic::isEdgeCategorized(base::State* from, base::State* to) const {
+    auto edge = std::make_pair(from, to);
+    return (guaranteedEdges_.find(edge) != guaranteedEdges_.end()) ||
+           (nonGuaranteedEdges_.find(edge) != nonGuaranteedEdges_.end());
+}
+
+void ompl::geometric::RRTXdynamic::clearEdgeCaches() {
+    guaranteedEdges_.clear();
+    nonGuaranteedEdges_.clear();
+}
+
+// Update collision checking wrapper to use new hash maps
+bool ompl::geometric::RRTXdynamic::checkMotionWithGuarantees(base::State* from, base::State* to) const {
+    auto edge = std::make_pair(from, to);
+    
+    // Check if edge is guaranteed collision-free
+    if (guaranteedEdges_.find(edge) != guaranteedEdges_.end()) {
+        return true;  // Skip collision check entirely
+    }
+    
+    // Perform normal collision check
+    return si_->checkMotion(from, to);
 }

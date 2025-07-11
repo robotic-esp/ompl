@@ -48,6 +48,7 @@
 #include <queue>
 #include <utility>
 #include <vector>
+#include <unordered_set>
 
 namespace ompl
 {
@@ -234,8 +235,7 @@ namespace ompl
             /** \brief Option to use k-nearest search for rewiring */
             bool useKNearest_{true};
 
-            /** \brief The rewiring factor, s, so that r_rrg = s \times r_rrg* > r_rrg* (or k_rrg = s \times k_rrg* >
-             * k_rrg*) */
+            /** \brief The rewiring factor, s, so that r_rrg = s \times r_rrg* > r_rrg* (or k_rrg = s \times k_rrg*) */
             double rewireFactor_{1.1};
 
             /** \brief A constant for k-nearest rewiring calculations */
@@ -310,6 +310,18 @@ namespace ompl
             std::uint_fast32_t localSeed_;
 
             std::set<Motion*> orphanSet_;
+
+        private:
+            // Hash function for base::State* pairs
+            struct EdgeHash {
+                std::size_t operator()(const std::pair<base::State*, base::State*>& edge) const {
+                    return std::hash<base::State*>{}(edge.first) ^ (std::hash<base::State*>{}(edge.second) << 1);
+                }
+            };
+            
+            // Two hash maps for edge categorization using state pairs directly
+            std::unordered_set<std::pair<base::State*, base::State*>, EdgeHash> guaranteedEdges_;
+            std::unordered_set<std::pair<base::State*, base::State*>, EdgeHash> nonGuaranteedEdges_;
 
         public:
             RRTXdynamic(const base::SpaceInformationPtr &si);
@@ -524,6 +536,29 @@ namespace ompl
                     infSampler_->setLocalSeed(localSeed_);
                 }
             };
+
+            // Check if an edge is guaranteed (for internal use)
+            bool isEdgeGuaranteed(base::State* from, base::State* to) const;
+
+            // Get all edges in the tree for external processing
+            std::vector<std::pair<base::State*, base::State*>> getAllTreeEdges() const;
+            
+            // Mark edges as guaranteed or non-guaranteed collision-free
+            void markEdgeAsGuaranteed(base::State* from, base::State* to);
+            void markEdgeAsNonGuaranteed(base::State* from, base::State* to);
+            
+            // Check if an edge has already been categorized
+            bool isEdgeCategorized(base::State* from, base::State* to) const;
+            
+            // Clear all edge caches
+            void clearEdgeCaches();
+            
+            // Collision checking with guaranteed edge support
+            bool checkMotionWithGuarantees(base::State* from, base::State* to) const;
+
+            // Get statistics
+            size_t getNumGuaranteedEdges() const { return guaranteedEdges_.size(); }
+            size_t getNumNonGuaranteedEdges() const { return nonGuaranteedEdges_.size(); }
 
         };
     }
